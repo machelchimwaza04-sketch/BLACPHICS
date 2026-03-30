@@ -1,3 +1,10 @@
 from django.contrib import admin
+from .models import Branch
 
-# Register your models here.
+
+@admin.register(Branch)
+class BranchAdmin(admin.ModelAdmin):
+    list_display = ['name', 'city', 'phone', 'email', 'is_active', 'created_at']
+    list_filter = ['is_active', 'city']
+    search_fields = ['name', 'city', 'email']
+    list_editable = ['is_active']
