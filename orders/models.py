@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from branches.models import Branch
 from customers.models import Customer
 from products.models import Product, ProductVariant
@@ -68,6 +69,23 @@ class OrderItem(models.Model):
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     customization_details = models.TextField(blank=True)
     customization_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    def clean(self):
+        if self.variant:
+            if self.quantity > self.variant.stock_quantity:
+                raise ValidationError(
+                    f"Not enough stock for {self.product.name} "
+                    f"({self.variant.size} - {self.variant.color}). "
+                    f"Available: {self.variant.stock_quantity}, "
+                    f"Requested: {self.quantity}"
+                )
+        elif self.product:
+            if self.quantity > self.product.stock_quantity:
+                raise ValidationError(
+                    f"Not enough stock for {self.product.name}. "
+                    f"Available: {self.product.stock_quantity}, "
+                    f"Requested: {self.quantity}"
+                )
 
     def __str__(self):
         return f"{self.quantity} x {self.product.name}"
