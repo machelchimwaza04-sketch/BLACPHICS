@@ -5,6 +5,7 @@ import Customers from './pages/Customers'
 import Orders from './pages/Orders'
 import Suppliers from './pages/Suppliers'
 import Finance from './pages/Finance'
+import POS from './pages/POS'
 import { useBranch } from './context/BranchContext'
 
 import { Toaster } from 'react-hot-toast'
@@ -16,10 +17,12 @@ import {
   Users,
   Truck,
   Wallet,
+  CreditCard,
 } from 'lucide-react'
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/pos', label: 'POS', icon: CreditCard },
   { path: '/products', label: 'Products', icon: Box },
   { path: '/orders', label: 'Orders', icon: ShoppingCart },
   { path: '/customers', label: 'Customers', icon: Users },
@@ -106,6 +109,7 @@ export default function App() {
               <Route path="/orders" element={<Orders />} />
               <Route path="/suppliers" element={<Suppliers />} />
               <Route path="/finance" element={<Finance />} />
+              <Route path="/pos" element={<POS />} />
             </Routes>
           </main>
 
