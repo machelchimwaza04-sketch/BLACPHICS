@@ -1,10 +1,15 @@
 import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot } from 'react-dom/client' // ✅ using createRoot
 import './index.css'
 import App from './App.jsx'
 
-createRoot(document.getElementById('root')).render(
+import { BranchProvider } from './context/BranchContext'
+
+const root = createRoot(document.getElementById('root')) // ✅ use createRoot
+root.render(
   <StrictMode>
-    <App />
-  </StrictMode>,
+    <BranchProvider>
+      <App />
+    </BranchProvider>
+  </StrictMode>
 )
