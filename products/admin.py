@@ -22,9 +22,47 @@ class ProductAdmin(admin.ModelAdmin):
     inlines = [ProductVariantInline]
 
 
+from django.contrib import admin
+from .models import ProductVariant
+
+
 @admin.register(ProductVariant)
 class ProductVariantAdmin(admin.ModelAdmin):
-    list_display = ['product', 'size', 'color', 'stock_quantity', 'extra_price', 'is_available']
-    list_filter = ['size', 'color', 'is_available']
-    search_fields = ['product__name', 'color']
-    list_editable = ['is_available']
+
+    list_display = (
+        'product',
+        'size',
+        'color',
+        'sku',
+        'stock_quantity',
+        'committed_quantity',
+        'available_quantity',
+        'stock_status',
+        'final_selling_price',
+        'is_active',
+    )
+
+    list_filter = (
+        'size',
+        'color',
+        'is_active',
+        'product',
+    )
+
+    search_fields = (
+        'product__name',
+        'sku',
+        'color',
+    )
+
+    list_editable = (
+        'stock_quantity',
+        'is_active',
+    )
+
+    readonly_fields = (
+        'available_quantity',
+        'stock_status',
+        'created_at',
+        'updated_at',
+    )
