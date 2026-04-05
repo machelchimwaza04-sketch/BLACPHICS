@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 
 from branches.models import Branch
 from customers.models import Customer
-from products.models import Product, ProductVariant
+from products.models import Product, ProductVariant, CustomizationService
 
 
 class Order(models.Model):
@@ -225,6 +225,11 @@ class OrderItem(models.Model):
 
     customization_price = models.DecimalField(
         max_digits=10, decimal_places=2, default=0.00
+    )
+    services = models.ManyToManyField(
+        CustomizationService,
+        blank=True,
+        related_name='order_items'
     )
 
     stock_status_at_sale = models.CharField(

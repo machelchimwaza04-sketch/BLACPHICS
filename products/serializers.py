@@ -1,51 +1,34 @@
 from rest_framework import serializers
-from .models import Category, Product, ProductVariant
+from .models import Category, Product, ProductVariant, CustomizationService
 
 
-# =========================================================
-# CATEGORY
-# =========================================================
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = '__all__'
 
 
-# =========================================================
-# PRODUCT VARIANT
-# =========================================================
 class ProductVariantSerializer(serializers.ModelSerializer):
-
-    # 🔥 Inventory Intelligence
     stock_status = serializers.ReadOnlyField()
     available_quantity = serializers.ReadOnlyField()
-
-    # 🔥 Pricing Intelligence
-    final_selling_price = serializers.ReadOnlyField()
 
     class Meta:
         model = ProductVariant
         fields = '__all__'
 
 
-# =========================================================
-# PRODUCT
-# =========================================================
 class ProductSerializer(serializers.ModelSerializer):
-
     variants = ProductVariantSerializer(many=True, read_only=True)
-
-    # 🔥 Aggregated Intelligence
-    total_stock = serializers.SerializerMethodField()
-    total_available = serializers.SerializerMethodField()
-    stock_status = serializers.SerializerMethodField()
-
-    # Optional existing fields (safe fallback)
     is_low_stock = serializers.ReadOnlyField()
-    total_price = serializers.ReadOnlyField()
 
     class Meta:
         model = Product
+        fields = '__all__'
+
+
+class CustomizationServiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomizationService
         fields = '__all__'
 
     # =========================
