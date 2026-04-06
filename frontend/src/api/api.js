@@ -24,7 +24,12 @@ export const updateProduct = (id, data) => api.put(`/products/${id}/`, data)
 export const deleteProduct = (id) => api.delete(`/products/${id}/`)
 export const getCategories = () => wrap(api.get('/categories/'))
 export const getVariants = () => wrap(api.get('/variants/'))
+export const createVariant = (data) => api.post('/variants/', data)
+export const deleteVariant = (id) => {return axios.delete(`/api/variants/${id}/`)}
 export const getCustomizationServices = () => wrap(api.get('/customization-services/'))
+export const updateVariant = async (variantId, data) => {
+  return await axios.put(`/api/variants/${variantId}/`, data);
+}
 
 // Customers
 export const getCustomers = (branchId) => wrap(api.get('/customers/', { params: { branch: branchId } }))
