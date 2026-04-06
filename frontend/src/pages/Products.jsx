@@ -518,18 +518,18 @@ export default function Products() {
                           className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none">
                           {SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
-                        <input placeholder="Color" value={v.color} onChange={e => updateVariant(i, 'color', e.target.value)}
+                        <input placeholder="Color" value={v.color} onChange={e => updateVariantField(i, 'color', e.target.value)}
                           className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
                         <div>
-                          <input type="number" placeholder="Stock" value={v.stock_quantity} onChange={e => updateVariant(i, 'stock_quantity', parseInt(e.target.value) || 0)}
+                          <input type="number" placeholder="Stock" value={v.stock_quantity} onChange={e => updateVariantField(i, 'stock_quantity', parseInt(e.target.value) || 0)}
                             className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
                         </div>
                         <div>
-                          <input type="number" step="0.01" placeholder="Cost $" value={v.cost_price} onChange={e => updateVariant(i, 'cost_price', e.target.value)}
+                          <input type="number" step="0.01" placeholder="Cost $" value={v.cost_price} onChange={e => updateVariantField(i, 'cost_price', e.target.value)}
                             className="w-full border border-rose-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-rose-300 bg-rose-50" />
                         </div>
                         <div>
-                          <input type="number" step="0.01" placeholder="Extra $" value={v.extra_price} onChange={e => updateVariant(i, 'extra_price', e.target.value)}
+                          <input type="number" step="0.01" placeholder="Extra $" value={v.extra_price} onChange={e => updateVariantField(i, 'extra_price', e.target.value)}
                             className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
                         </div>
                         <button type="button" onClick={() => removeVariant(i)}

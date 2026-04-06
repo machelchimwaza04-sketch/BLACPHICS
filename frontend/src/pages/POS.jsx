@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { getBranches, getProducts, getCustomers, createOrder, createOrderItem, getCustomizationServices } from '../api/api'
+import { useReducer } from 'react'
 
 const stockStyles = {
   in_stock: 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -9,6 +10,67 @@ const stockStyles = {
 const stockDot = { in_stock: 'bg-emerald-500', low_stock: 'bg-yellow-400', out_of_stock: 'bg-rose-500' }
 const stockLabel = { in_stock: 'In stock', low_stock: 'Low stock', out_of_stock: 'Out of stock' }
 
+const initialCartState = {}
+
+function cartReducer(state, action) {
+  switch (action.type) {
+    case 'ADD_ITEM': {
+      const { product, variant } = action.payload
+      const key = variant ? `${product.id}-${variant.id}` : `${product.id}`
+
+      const base = Number(product.base_price) || 0
+      const extra = variant ? Number(variant.extra_price) || 0 : 0
+
+      if (state[key]) {
+        return {
+          ...state,
+          [key]: { ...state[key], quantity: state[key].quantity + 1 }
+        }
+      }
+
+      return {
+        ...state,
+        [key]: {
+          key,
+          product,
+          variant,
+          quantity: 1,
+          unit_price: base + extra,
+          override_price: null,
+          override_reason: '',
+          customization_details: '',
+          customization_price: 0,
+          selected_services: [],
+          stock_status: variant?.stock_status || 'in_stock',
+        }
+      }
+    }
+
+    case 'UPDATE_ITEM': {
+      const { key, field, value } = action.payload
+      return {
+        ...state,
+        [key]: { ...state[key], [field]: value }
+      }
+    }
+
+    case 'REMOVE_ITEM': {
+      const newState = { ...state }
+      delete newState[action.payload]
+      return newState
+    }
+
+    case 'SET_CART':
+      return action.payload
+
+    case 'CLEAR_CART':
+      return {}
+
+    default:
+      return state
+  }
+}
+
 export default function POS() {
   const [branches, setBranches] = useState([])
   const [selectedBranch, setSelectedBranch] = useState(null)
@@ -16,7 +78,7 @@ export default function POS() {
   const [customers, setCustomers] = useState([])
   const [services, setServices] = useState([])
   const [search, setSearch] = useState('')
-  const [cart, setCart] = useState([])
+  const [cart, dispatchCart] = useReducer(cartReducer, initialCartState)
   const [transactionType, setTransactionType] = useState('quick_sale')
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [payment, setPayment] = useState({ method: 'cash', amount_paid: 0 })
@@ -46,7 +108,7 @@ export default function POS() {
     Promise.all([getProducts(selectedBranch.id), getCustomers(selectedBranch.id)])
       .then(([p, c]) => { setProducts(p.data); setCustomers(c.data) })
       .catch(() => alert('Could not load products'))
-    setCart([])
+    dispatchCart({ type: 'CLEAR_CART' })
     setOrderNumber('ORD-' + Date.now().toString().slice(-6))
   }, [selectedBranch])
 
@@ -55,10 +117,16 @@ export default function POS() {
   , [products, search])
 
   const addToCart = (product, variant = null) => {
-    if (transactionType === 'quick_sale') {
-      const st = variant ? variant.stock_status : 'in_stock'
-      if (st === 'out_of_stock') { alert('Out of stock. Switch to Custom Order.'); return }
+  if (transactionType === 'quick_sale') {
+    const st = variant ? variant.stock_status : 'in_stock'
+    if (st === 'out_of_stock') {
+      alert('Out of stock. Switch to Custom Order.')
+      return
     }
+  }
+  dispatchCart({ type: 'ADD_ITEM', payload: { product, variant } })
+
+
     const key = variant ? product.id + '-' + variant.id : String(product.id)
     const base = toNum(product.base_price)
     const extra = variant ? toNum(variant.extra_price) : 0
@@ -79,23 +147,55 @@ export default function POS() {
     })
   }
 
-  const updateItem = (key, field, val) =>
-    setCart(prev => prev.map(i => i.key === key ? { ...i, [field]: val } : i))
+  const updateItem = (key, field, val) => {
+    dispatchCart({
+        type: 'UPDATE_ITEM',
+        payload: { key, field, value: val }
+    })
+}
 
-  const removeItem = (key) => setCart(prev => prev.filter(i => i.key !== key))
-  const incQty = (key) => setCart(prev => prev.map(i => i.key === key ? { ...i, quantity: i.quantity + 1 } : i))
-  const decQty = (key) => setCart(prev => prev.map(i => i.key === key ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i))
+  const removeItem = (key) => dispatchCart({ type: 'REMOVE_ITEM', payload: key })
+  const incQty = (key) => {
+    const item = cart[key]
+    if (!item) return
+    dispatchCart({
+        type: 'UPDATE_ITEM',
+        payload: { key, field: 'quantity', value: item.quantity + 1 }
+    })
+    }
+
+  const decQty = (key) => {
+    const item = cart[key]
+    if (!item) return
+    dispatchCart({
+        type: 'UPDATE_ITEM',
+        payload: { key, field: 'quantity', value: Math.max(1, item.quantity - 1) }
+    })
+    }
 
   const toggleService = (key, svc) => {
-    setCart(prev => prev.map(item => {
-      if (item.key !== key) return item
-      const has = item.selected_services.find(s => s.id === svc.id)
-      const next = has ? item.selected_services.filter(s => s.id !== svc.id) : [...item.selected_services, svc]
-      return { ...item, selected_services: next, customization_price: next.reduce((s, x) => s + toNum(x.price), 0) }
-    }))
-  }
+    const item = cart[key]
+    if (!item) return
 
-  const subtotal = cart.reduce((sum, i) => {
+    const has = item.selected_services.find(s => s.id === svc.id)
+    const next = has
+        ? item.selected_services.filter(s => s.id !== svc.id)
+        : [...item.selected_services, svc]
+
+    const customization_price = next.reduce((sum, x) => sum + toNum(x.price), 0)
+
+    dispatchCart({
+        type: 'UPDATE_ITEM',
+        payload: { key, field: 'selected_services', value: next }
+    })
+
+    dispatchCart({
+        type: 'UPDATE_ITEM',
+        payload: { key, field: 'customization_price', value: customization_price }
+    })
+    }
+
+  const subtotal = Object.values(cart).reduce((sum, i) => {
     const p = (i.override_price !== null && i.override_price !== '') ? toNum(i.override_price) : toNum(i.unit_price)
     return sum + (p + toNum(i.customization_price)) * i.quantity
   }, 0)
@@ -105,7 +205,7 @@ export default function POS() {
   const balance = total - paidAmt
 
   const checkout = async () => {
-    if (!cart.length) return alert('Cart is empty')
+    if (Object.keys(cart).length === 0) return alert('Cart is empty')
     if (!orderNumber) return alert('Order number required')
     setLoading(true)
     try {
@@ -125,7 +225,7 @@ export default function POS() {
         estimated_completion: estimatedCompletion || null,
         payment_status: balance <= 0 ? 'paid' : paidAmt > 0 ? 'partial' : 'unpaid',
       })
-      await Promise.all(cart.map(item => createOrderItem({
+      await Promise.all(Object.values(cart).map(item => createOrderItem({
         order: oRes.data.id,
         product: item.product.id,
         variant: item.variant ? item.variant.id : null,
@@ -139,7 +239,7 @@ export default function POS() {
         services: item.selected_services.map(s => s.id),
       })))
       setSuccess({ orderNumber, total: round2(total).toFixed(2), balance: round2(balance).toFixed(2) })
-      setCart([])
+      dispatchCart({ type: 'CLEAR_CART' })
       setOrderNumber('ORD-' + Date.now().toString().slice(-6))
       setDiscount({ amount: 0, reason: '' })
       setPayment({ method: 'cash', amount_paid: 0 })
@@ -176,7 +276,7 @@ export default function POS() {
           <h1 className="text-base font-semibold text-gray-800">Point of Sale</h1>
           <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
             {[{k:'quick_sale',l:'Quick Sale'},{k:'custom_order',l:'Custom Order'}].map(t => (
-              <button key={t.k} onClick={() => { setTransactionType(t.k); setCart([]) }}
+              <button key={t.k} onClick={() => { setTransactionType(t.k); dispatchCart({ type: 'CLEAR_CART' }) }}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${transactionType === t.k ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                 {t.l}
               </button>
@@ -260,12 +360,12 @@ export default function POS() {
 
         {/* cart items */}
         <div className="flex-1 min-h-[300px] overflow-y-auto px-4 py-3 space-y-3">
-          {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 text-gray-300">
-              <p className="text-sm">Cart is empty</p>
-              <p className="text-xs mt-1">Click a product to add it</p>
-            </div>
-          ) : cart.map(item => {
+          {Object.keys(cart).length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-32 text-gray-300">
+            <p className="text-sm">Cart is empty</p>
+            <p className="text-xs mt-1">Click a product to add it</p>
+        </div>
+        ) : Object.values(cart).map(item => {
             const effPrice = (item.override_price !== null && item.override_price !== '') ? toNum(item.override_price) : toNum(item.unit_price)
             const svcTotal = toNum(item.customization_price)
             const lineTotal = (effPrice + svcTotal) * item.quantity
@@ -428,7 +528,7 @@ export default function POS() {
             </div>
           </div>
 
-          <button onClick={checkout} disabled={loading || cart.length === 0}
+          <button onClick={checkout} disabled={loading || Object.keys(cart).length === 0}
             className={`w-full py-3 rounded-xl text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${transactionType === 'quick_sale' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}>
             {loading ? 'Processing...' : transactionType === 'quick_sale' ? 'Complete sale' : 'Place custom order'}
           </button>
