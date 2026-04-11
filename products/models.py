@@ -104,6 +104,19 @@ class ProductVariant(models.Model):
             return round(((sp - cp) / sp) * 100, 2)
         return None
 
+    @property
+    def available_quantity(self):
+        return max(0, self.stock_quantity - self.committed_quantity)
+
+    @property
+    def stock_status(self):
+        available = max(0, self.stock_quantity - self.committed_quantity)
+        if available <= 0:
+            return 'out_of_stock'
+        elif available <= self.product.low_stock_threshold:
+            return 'low_stock'
+        return 'in_stock'
+
     def add_stock(self, quantity):
         self.stock_quantity += quantity
         self.save()

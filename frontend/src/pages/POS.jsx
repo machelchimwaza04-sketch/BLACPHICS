@@ -1,6 +1,9 @@
-import { useEffect, useState, useMemo } from 'react'
-import { getBranches, getProducts, getCustomers, createOrder, createOrderItem, getCustomizationServices } from '../api/api'
-import { useReducer } from 'react'
+import { useEffect, useState, useMemo, useReducer } from 'react'
+import {
+  getBranches, getProducts, getCustomers,
+  createOrder, createOrderItem, getCustomizationServices,
+  getNextOrderNumber, addPayment
+} from '../api/api'
 
 const stockStyles = {
   in_stock: 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -10,64 +13,28 @@ const stockStyles = {
 const stockDot = { in_stock: 'bg-emerald-500', low_stock: 'bg-yellow-400', out_of_stock: 'bg-rose-500' }
 const stockLabel = { in_stock: 'In stock', low_stock: 'Low stock', out_of_stock: 'Out of stock' }
 
-const initialCartState = {}
-
 function cartReducer(state, action) {
   switch (action.type) {
     case 'ADD_ITEM': {
       const { product, variant } = action.payload
       const key = variant ? `${product.id}-${variant.id}` : `${product.id}`
-
       const base = Number(product.base_price) || 0
       const extra = variant ? Number(variant.extra_price) || 0 : 0
-
-      if (state[key]) {
-        return {
-          ...state,
-          [key]: { ...state[key], quantity: state[key].quantity + 1 }
-        }
-      }
-
-      return {
-        ...state,
-        [key]: {
-          key,
-          product,
-          variant,
-          quantity: 1,
-          unit_price: base + extra,
-          override_price: null,
-          override_reason: '',
-          customization_details: '',
-          customization_price: 0,
-          selected_services: [],
-          stock_status: variant?.stock_status || 'in_stock',
-        }
-      }
+      if (state[key]) return { ...state, [key]: { ...state[key], quantity: state[key].quantity + 1 } }
+      return { ...state, [key]: {
+        key, product, variant, quantity: 1,
+        unit_price: base + extra, override_price: null, override_reason: '',
+        customization_details: '', customization_price: 0,
+        selected_services: [], stock_status: variant?.stock_status || 'in_stock',
+      }}
     }
-
-    case 'UPDATE_ITEM': {
-      const { key, field, value } = action.payload
-      return {
-        ...state,
-        [key]: { ...state[key], [field]: value }
-      }
-    }
-
+    case 'UPDATE_ITEM':
+      return { ...state, [action.payload.key]: { ...state[action.payload.key], [action.payload.field]: action.payload.value } }
     case 'REMOVE_ITEM': {
-      const newState = { ...state }
-      delete newState[action.payload]
-      return newState
+      const s = { ...state }; delete s[action.payload]; return s
     }
-
-    case 'SET_CART':
-      return action.payload
-
-    case 'CLEAR_CART':
-      return {}
-
-    default:
-      return state
+    case 'CLEAR_CART': return {}
+    default: return state
   }
 }
 
@@ -78,11 +45,11 @@ export default function POS() {
   const [customers, setCustomers] = useState([])
   const [services, setServices] = useState([])
   const [search, setSearch] = useState('')
-  const [cart, dispatchCart] = useReducer(cartReducer, initialCartState)
+  const [cart, dispatch] = useReducer(cartReducer, {})
   const [transactionType, setTransactionType] = useState('quick_sale')
   const [selectedCustomer, setSelectedCustomer] = useState(null)
-  const [payment, setPayment] = useState({ method: 'cash', amount_paid: 0 })
-  const [discount, setDiscount] = useState({ amount: 0, reason: '' })
+  const [payment, setPayment] = useState({ method: 'cash', amount_paid: '' })
+  const [discount, setDiscount] = useState({ amount: '', reason: '' })
   const [notes, setNotes] = useState('')
   const [estimatedCompletion, setEstimatedCompletion] = useState('')
   const [orderNumber, setOrderNumber] = useState('')
@@ -91,6 +58,15 @@ export default function POS() {
 
   const toNum = (v) => Number(v) || 0
   const round2 = (n) => Math.round(n * 100) / 100
+
+  const fetchNextOrderNumber = async (branchId) => {
+    try {
+      const res = await getNextOrderNumber(branchId)
+      setOrderNumber(res.data.order_number)
+    } catch {
+      setOrderNumber('ORD-' + Date.now().toString().slice(-6))
+    }
+  }
 
   useEffect(() => {
     getBranches().then(r => {
@@ -108,8 +84,8 @@ export default function POS() {
     Promise.all([getProducts(selectedBranch.id), getCustomers(selectedBranch.id)])
       .then(([p, c]) => { setProducts(p.data); setCustomers(c.data) })
       .catch(() => alert('Could not load products'))
-    dispatchCart({ type: 'CLEAR_CART' })
-    setOrderNumber('ORD-' + Date.now().toString().slice(-6))
+    dispatch({ type: 'CLEAR_CART' })
+    fetchNextOrderNumber(selectedBranch.id)
   }, [selectedBranch])
 
   const filtered = useMemo(() =>
@@ -117,85 +93,28 @@ export default function POS() {
   , [products, search])
 
   const addToCart = (product, variant = null) => {
-  if (transactionType === 'quick_sale') {
-    const st = variant ? variant.stock_status : 'in_stock'
-    if (st === 'out_of_stock') {
-      alert('Out of stock. Switch to Custom Order.')
-      return
+    if (transactionType === 'quick_sale') {
+      const st = variant ? variant.stock_status : 'in_stock'
+      if (st === 'out_of_stock') { alert('Out of stock. Switch to Custom Order.'); return }
     }
-  }
-  dispatchCart({ type: 'ADD_ITEM', payload: { product, variant } })
-
-
-    const key = variant ? product.id + '-' + variant.id : String(product.id)
-    const base = toNum(product.base_price)
-    const extra = variant ? toNum(variant.extra_price) : 0
-    setCart(prev => {
-      const ex = prev.find(i => i.key === key)
-      if (ex) return prev.map(i => i.key === key ? { ...i, quantity: i.quantity + 1 } : i)
-      return [...prev, {
-        key, product, variant,
-        quantity: 1,
-        unit_price: base + extra,
-        override_price: null,
-        override_reason: '',
-        customization_details: '',
-        customization_price: 0,
-        selected_services: [],
-        stock_status: variant ? (variant.stock_status || 'in_stock') : 'in_stock',
-      }]
-    })
+    dispatch({ type: 'ADD_ITEM', payload: { product, variant } })
   }
 
-  const updateItem = (key, field, val) => {
-    dispatchCart({
-        type: 'UPDATE_ITEM',
-        payload: { key, field, value: val }
-    })
-}
-
-  const removeItem = (key) => dispatchCart({ type: 'REMOVE_ITEM', payload: key })
-  const incQty = (key) => {
-    const item = cart[key]
-    if (!item) return
-    dispatchCart({
-        type: 'UPDATE_ITEM',
-        payload: { key, field: 'quantity', value: item.quantity + 1 }
-    })
-    }
-
-  const decQty = (key) => {
-    const item = cart[key]
-    if (!item) return
-    dispatchCart({
-        type: 'UPDATE_ITEM',
-        payload: { key, field: 'quantity', value: Math.max(1, item.quantity - 1) }
-    })
-    }
+  const updateItem = (key, field, val) => dispatch({ type: 'UPDATE_ITEM', payload: { key, field, value: val } })
+  const removeItem = (key) => dispatch({ type: 'REMOVE_ITEM', payload: key })
+  const incQty = (key) => { const i = cart[key]; if (i) updateItem(key, 'quantity', i.quantity + 1) }
+  const decQty = (key) => { const i = cart[key]; if (i) updateItem(key, 'quantity', Math.max(1, i.quantity - 1)) }
 
   const toggleService = (key, svc) => {
-    const item = cart[key]
-    if (!item) return
-
+    const item = cart[key]; if (!item) return
     const has = item.selected_services.find(s => s.id === svc.id)
-    const next = has
-        ? item.selected_services.filter(s => s.id !== svc.id)
-        : [...item.selected_services, svc]
+    const next = has ? item.selected_services.filter(s => s.id !== svc.id) : [...item.selected_services, svc]
+    updateItem(key, 'selected_services', next)
+    updateItem(key, 'customization_price', next.reduce((s, x) => s + toNum(x.price), 0))
+  }
 
-    const customization_price = next.reduce((sum, x) => sum + toNum(x.price), 0)
-
-    dispatchCart({
-        type: 'UPDATE_ITEM',
-        payload: { key, field: 'selected_services', value: next }
-    })
-
-    dispatchCart({
-        type: 'UPDATE_ITEM',
-        payload: { key, field: 'customization_price', value: customization_price }
-    })
-    }
-
-  const subtotal = Object.values(cart).reduce((sum, i) => {
+  const cartItems = Object.values(cart)
+  const subtotal = cartItems.reduce((sum, i) => {
     const p = (i.override_price !== null && i.override_price !== '') ? toNum(i.override_price) : toNum(i.unit_price)
     return sum + (p + toNum(i.customization_price)) * i.quantity
   }, 0)
@@ -203,13 +122,25 @@ export default function POS() {
   const paidAmt = toNum(payment.amount_paid)
   const total = subtotal - discAmt
   const balance = total - paidAmt
+  const changeDue = Math.max(0, paidAmt - total)
+  const isOverpaid = paidAmt > total && total > 0
+
+  const resetAfterCheckout = () => {
+    dispatch({ type: 'CLEAR_CART' })
+    fetchNextOrderNumber(selectedBranch?.id)
+    setDiscount({ amount: '', reason: '' })
+    setPayment({ method: 'cash', amount_paid: '' })
+    setNotes('')
+    setEstimatedCompletion('')
+    setSelectedCustomer(null)
+  }
 
   const checkout = async () => {
-    if (Object.keys(cart).length === 0) return alert('Cart is empty')
+    if (cartItems.length === 0) return alert('Cart is empty')
     if (!orderNumber) return alert('Order number required')
     setLoading(true)
     try {
-      const oRes = await createOrder({
+            const oRes = await createOrder({
         branch: selectedBranch.id,
         customer: selectedCustomer || null,
         order_number: orderNumber,
@@ -219,13 +150,12 @@ export default function POS() {
         total_amount: round2(subtotal),
         discount_amount: round2(discAmt),
         discount_reason: discount.reason,
-        amount_paid: round2(paidAmt),
-        deposit_amount: round2(paidAmt),
+        amount_paid: round2(Math.min(paidAmt, total)),
         notes,
         estimated_completion: estimatedCompletion || null,
         payment_status: balance <= 0 ? 'paid' : paidAmt > 0 ? 'partial' : 'unpaid',
       })
-      await Promise.all(Object.values(cart).map(item => createOrderItem({
+      await Promise.all(cartItems.map(item => createOrderItem({
         order: oRes.data.id,
         product: item.product.id,
         variant: item.variant ? item.variant.id : null,
@@ -233,24 +163,34 @@ export default function POS() {
         unit_price: item.unit_price,
         override_price: item.override_price || null,
         override_reason: item.override_reason,
-        customization_details: item.customization_details,
+        customization_details: item.customization_details || item.product.description || '',
         customization_price: item.customization_price,
         stock_status_at_sale: item.stock_status,
         services: item.selected_services.map(s => s.id),
       })))
-      setSuccess({ orderNumber, total: round2(total).toFixed(2), balance: round2(balance).toFixed(2) })
-      dispatchCart({ type: 'CLEAR_CART' })
-      setOrderNumber('ORD-' + Date.now().toString().slice(-6))
-      setDiscount({ amount: 0, reason: '' })
-      setPayment({ method: 'cash', amount_paid: 0 })
-      setNotes('')
+      if (paidAmt > 0) {
+        await addPayment(oRes.data.id, {
+          amount: round2(Math.min(paidAmt, total)),
+          method: payment.method,
+          payment_type: 'payment',
+        })
+      }
+      setSuccess({
+        orderNumber,
+        total: round2(total).toFixed(2),
+        balance: round2(Math.max(0, balance)).toFixed(2),
+        change: changeDue > 0 ? round2(changeDue).toFixed(2) : null,
+        customerName: customers.find(c => String(c.id) === String(selectedCustomer))
+          ? customers.find(c => String(c.id) === String(selectedCustomer)).first_name + ' ' + customers.find(c => String(c.id) === String(selectedCustomer)).last_name
+          : 'Walk-in',
+      })
+      resetAfterCheckout()
     } catch (err) {
       alert('Checkout failed: ' + JSON.stringify(err.response ? err.response.data : err.message))
     }
     setLoading(false)
   }
-
-  if (success) return (
+    if (success) return (
     <div className="flex items-center justify-center h-screen bg-gray-100">
       <div className="bg-white p-8 rounded-2xl shadow-xl text-center w-96">
         <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -258,25 +198,31 @@ export default function POS() {
         </div>
         <h2 className="text-xl font-semibold">{transactionType === 'quick_sale' ? 'Sale complete!' : 'Order placed!'}</h2>
         <p className="text-gray-400 text-sm mt-1">Order {success.orderNumber}</p>
+        <p className="text-xs text-gray-400 mt-0.5">Customer: {success.customerName}</p>
         <p className="text-3xl font-bold mt-3">${success.total}</p>
-        {parseFloat(success.balance) > 0 && <p className="text-rose-500 text-sm mt-1">Balance due: ${success.balance}</p>}
-        <button onClick={() => setSuccess(null)} className="mt-6 w-full bg-indigo-600 text-white py-2.5 rounded-xl text-sm hover:bg-indigo-700">New transaction</button>
+        {success.change && (
+          <div className="mt-2 bg-emerald-50 rounded-xl px-4 py-2">
+            <p className="text-emerald-600 font-bold text-lg">Change due: ${success.change}</p>
+          </div>
+        )}
+        {parseFloat(success.balance) > 0 && !success.change && (
+          <p className="text-rose-500 text-sm mt-1">Balance due: ${success.balance}</p>
+        )}
+        <button onClick={() => setSuccess(null)} className="mt-6 w-full bg-indigo-600 text-white py-2.5 rounded-xl text-sm hover:bg-indigo-700">
+          New transaction
+        </button>
       </div>
     </div>
   )
 
-    return (
-    <div className="flex h-full bg-gray-50">
-
-      {/* LEFT — product browser */}
-      <div className="w-[55%] flex flex-col overflow-hidden border-r border-gray-200 bg-white">
-
-        {/* header */}
+  return (
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      <div className="w-[55%] flex flex-col h-full overflow-hidden border-r border-gray-200 bg-white">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
           <h1 className="text-base font-semibold text-gray-800">Point of Sale</h1>
           <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
             {[{k:'quick_sale',l:'Quick Sale'},{k:'custom_order',l:'Custom Order'}].map(t => (
-              <button key={t.k} onClick={() => { setTransactionType(t.k); dispatchCart({ type: 'CLEAR_CART' }) }}
+              <button key={t.k} onClick={() => { setTransactionType(t.k); dispatch({ type: 'CLEAR_CART' }) }}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${transactionType === t.k ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                 {t.l}
               </button>
@@ -284,56 +230,44 @@ export default function POS() {
           </div>
           <select value={selectedBranch ? selectedBranch.id : ''}
             onChange={e => setSelectedBranch(branches.find(b => b.id === parseInt(e.target.value)))}
-            className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+            className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none">
             {branches.map(b => <option key={b.id} value={b.id}>{b.name} — {b.city}</option>)}
           </select>
         </div>
-
-        {/* search */}
         <div className="px-5 py-3 border-b border-gray-100">
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-gray-50" />
         </div>
-
-        {/* product grid */}
         <div className="flex-1 overflow-y-auto p-5 grid grid-cols-2 gap-3 content-start">
           {filtered.map(product => (
             <div key={product.id} className="bg-white rounded-xl border border-gray-100 p-4 hover:border-indigo-200 hover:shadow-sm transition">
               <div className="flex items-start justify-between mb-2">
                 <p className="font-medium text-sm text-gray-800 leading-tight">{product.name}</p>
-                <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ml-2 ${product.item_type === 'customizable' ? 'bg-purple-50 text-purple-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {product.item_type}
-                </span>
+                <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ml-2 ${product.item_type === 'customizable' ? 'bg-purple-50 text-purple-700' : 'bg-gray-100 text-gray-500'}`}>{product.item_type}</span>
               </div>
               <p className="text-base font-bold text-indigo-600 mb-3">${toNum(product.base_price).toFixed(2)}</p>
               {product.variants && product.variants.length > 0 ? (
                 <div className="space-y-1.5">
                   {product.variants.map(v => (
                     <button key={v.id} onClick={() => addToCart(product, v)}
-                      className={`w-full text-xs px-3 py-2 rounded-lg border flex justify-between items-center transition hover:opacity-90 active:scale-98 ${stockStyles[v.stock_status || 'in_stock']}`}>
+                      className={`w-full text-xs px-3 py-2 rounded-lg border flex justify-between items-center transition hover:opacity-90 ${stockStyles[v.stock_status || 'in_stock']}`}>
                       <span className="font-semibold">{v.size} / {v.color}</span>
                       <div className="flex items-center gap-1.5">
                         <span className={`w-2 h-2 rounded-full ${stockDot[v.stock_status || 'in_stock']}`} />
-                        <span>{v.available_quantity != null ? v.available_quantity : v.stock_quantity} left</span>
+                        <span>{Math.max(0, v.available_quantity != null ? v.available_quantity : v.stock_quantity)} left</span>
                       </div>
                     </button>
                   ))}
                 </div>
               ) : (
-                <button onClick={() => addToCart(product)}
-                  className="w-full bg-indigo-600 text-white text-xs px-3 py-2 rounded-lg hover:bg-indigo-700 transition font-medium">
-                  + Add to cart
-                </button>
+                <button onClick={() => addToCart(product)} className="w-full bg-indigo-600 text-white text-xs px-3 py-2 rounded-lg hover:bg-indigo-700 transition font-medium">+ Add to cart</button>
               )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* RIGHT — cart */}
-      <div className="w-[45%] max-w-[520px] flex flex-col bg-white border-l border-gray-100">
-
-        {/* cart header */}
+      <div className="w-[45%] flex flex-col bg-white border-l border-gray-100">
         <div className="px-5 py-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-gray-800">Cart</h2>
@@ -345,52 +279,43 @@ export default function POS() {
             <div>
               <label className="text-xs font-medium text-gray-500 mb-1 block">Order number</label>
               <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-gray-50" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Customer</label>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Customer <span className="text-rose-400">*</span></label>
               <select value={selectedCustomer || ''} onChange={e => setSelectedCustomer(e.target.value || null)}
                 className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
                 <option value="">Walk-in</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+                {customers.reverse().map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
               </select>
             </div>
           </div>
         </div>
 
-        {/* cart items */}
-        <div className="flex-1 min-h-[300px] overflow-y-auto px-4 py-3 space-y-3">
-          {Object.keys(cart).length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-32 text-gray-300">
-            <p className="text-sm">Cart is empty</p>
-            <p className="text-xs mt-1">Click a product to add it</p>
-        </div>
-        ) : Object.values(cart).map(item => {
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          {cartItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-32 text-gray-300">
+              <p className="text-sm">Cart is empty</p>
+              <p className="text-xs mt-1">Click a product to add it</p>
+            </div>
+          ) : cartItems.map(item => {
             const effPrice = (item.override_price !== null && item.override_price !== '') ? toNum(item.override_price) : toNum(item.unit_price)
             const svcTotal = toNum(item.customization_price)
             const lineTotal = (effPrice + svcTotal) * item.quantity
             return (
-              <div key={item.key} className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden min-h-[180px]">
-
-                {/* item header */}
-                <div className="px-4 pt-4 pb-2 space-y-1">
-                <p className="text-sm font-semibold text-gray-800">{item.product.name}</p>
-
-                {item.variant && (
-                    <p className="text-xs text-gray-400">
-                    {item.variant.size} / {item.variant.color}
-                    </p>
-                )}
-
-                <div className="flex justify-between items-center pt-1">
-                    <span className="text-xs text-gray-400">Line total</span>
-                    <span className="text-sm font-bold text-gray-800">
-                    ${lineTotal.toFixed(2)}
-                    </span>
+              <div key={item.key} className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden transition-all duration-200">
+                <div className="px-4 pt-3 pb-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{item.product.name}</p>
+                      {item.variant && <p className="text-xs text-gray-400">{item.variant.size} / {item.variant.color}</p>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-gray-800">${lineTotal.toFixed(2)}</span>
+                      <button onClick={() => removeItem(item.key)} className="text-gray-300 hover:text-rose-400 text-lg leading-none">×</button>
+                    </div>
+                  </div>
                 </div>
-                </div>
-
-                {/* qty + price row */}
                 <div className="flex items-center gap-3 px-3 pb-2">
                   <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-white">
                     <button onClick={() => decQty(item.key)} className="px-2.5 py-1 text-gray-500 hover:bg-gray-100 font-bold text-base">−</button>
@@ -399,14 +324,12 @@ export default function POS() {
                       className="w-10 text-center text-sm py-1 border-x border-gray-200 focus:outline-none" />
                     <button onClick={() => incQty(item.key)} className="px-2.5 py-1 text-gray-500 hover:bg-gray-100 font-bold text-base">+</button>
                   </div>
-                  <div className="flex-1 text-xs text-gray-500 space-y-1 leading-relaxed">
-                    <div className="flex justify-between"><span>Base</span><span className="text-gray-600">${toNum(item.unit_price).toFixed(2)}</span></div>
+                  <div className="flex-1 text-xs text-gray-500 space-y-0.5">
+                    <div className="flex justify-between"><span>Base</span><span>${toNum(item.unit_price).toFixed(2)}</span></div>
                     {svcTotal > 0 && <div className="flex justify-between text-purple-500"><span>Services</span><span>+${svcTotal.toFixed(2)}</span></div>}
                     {item.override_price !== null && <div className="flex justify-between text-amber-500"><span>Override</span><span>${toNum(item.override_price).toFixed(2)}</span></div>}
                   </div>
                 </div>
-
-                {/* services */}
                 {services.length > 0 && (
                   <div className="border-t border-gray-100 px-3 py-2">
                     <p className="text-xs font-medium text-gray-500 mb-1.5">Add customization</p>
@@ -422,15 +345,13 @@ export default function POS() {
                       })}
                     </div>
                     {item.selected_services.length > 0 && (
-                      <input placeholder="Details e.g. Add nightclub logo on back"
+                      <input placeholder="Details e.g. Add nightclub logo"
                         value={item.customization_details}
                         onChange={e => updateItem(item.key, 'customization_details', e.target.value)}
-                        className="mt-2 w-full border border-purple-200 rounded-lg px-2 py-1.5 text-xs bg-purple-50 focus:outline-none focus:ring-1 focus:ring-purple-300 placeholder-purple-300" />
+                        className="mt-2 w-full border border-purple-200 rounded-lg px-2 py-1.5 text-xs bg-purple-50 focus:outline-none" />
                     )}
                   </div>
                 )}
-
-                {/* override */}
                 <div className="border-t border-gray-100 px-3 py-2">
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-medium text-gray-400 shrink-0">Override price</label>
@@ -440,22 +361,17 @@ export default function POS() {
                       className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-300" />
                   </div>
                   {item.override_price !== null && (
-                    <input placeholder="Reason e.g. Staff discount"
-                      value={item.override_reason}
+                    <input placeholder="Reason e.g. Staff discount" value={item.override_reason}
                       onChange={e => updateItem(item.key, 'override_reason', e.target.value)}
-                      className="mt-1.5 w-full border border-amber-200 rounded-lg px-2 py-1 text-xs bg-amber-50 focus:outline-none placeholder-amber-300" />
+                      className="mt-1.5 w-full border border-amber-200 rounded-lg px-2 py-1 text-xs bg-amber-50 focus:outline-none" />
                   )}
                 </div>
-
               </div>
             )
           })}
         </div>
 
-        {/* checkout panel */}
-        <div className="border-t border-gray-100 px-4 py-4 space-y-3 bg-white shrink-0">
-
-          {/* discount row */}
+        <div className="border-t border-gray-100 px-4 py-3 space-y-2 bg-white shrink-0 overflow-y-auto max-h-[55vh]">
           <div className="flex gap-2">
             <div className="flex-1">
               <label className="text-xs font-medium text-gray-500 mb-1 block">Discount ($)</label>
@@ -469,8 +385,6 @@ export default function POS() {
                 className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300" />
             </div>
           </div>
-
-          {/* custom order extras */}
           {transactionType === 'custom_order' && (
             <div>
               <label className="text-xs font-medium text-gray-500 mb-1 block">Estimated completion date</label>
@@ -478,16 +392,12 @@ export default function POS() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-300" />
             </div>
           )}
-
-          {/* notes */}
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">Notes</label>
             <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="Any special instructions..."
               className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-none" />
           </div>
-
-          {/* payment */}
           <div className="flex gap-2">
             <div className="w-36 shrink-0">
               <label className="text-xs font-medium text-gray-500 mb-1 block">Payment method</label>
@@ -506,33 +416,25 @@ export default function POS() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300" />
             </div>
           </div>
-
-          {/* totals summary */}
           <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-1.5">
-            <div className="flex justify-between text-xs text-gray-400">
-              <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
-            </div>
-            {discAmt > 0 && (
-              <div className="flex justify-between text-xs text-emerald-600">
-                <span>Discount</span><span>−${discAmt.toFixed(2)}</span>
+            <div className="flex justify-between text-xs text-gray-400"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+            {discAmt > 0 && <div className="flex justify-between text-xs text-emerald-600"><span>Discount</span><span>−${discAmt.toFixed(2)}</span></div>}
+            <div className="flex justify-between text-sm font-bold text-gray-800 border-t border-gray-200 pt-1.5"><span>Total</span><span>${total.toFixed(2)}</span></div>
+            <div className="flex justify-between text-xs text-gray-400"><span>Paid</span><span>${paidAmt.toFixed(2)}</span></div>
+            {isOverpaid ? (
+              <div className="flex justify-between text-base font-bold text-emerald-600 bg-emerald-50 rounded-lg px-2 py-1">
+                <span>Change due</span><span>${changeDue.toFixed(2)}</span>
+              </div>
+            ) : (
+              <div className={`flex justify-between text-base font-bold pt-0.5 ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                <span>Balance due</span><span>${Math.max(0, balance).toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between text-sm font-bold text-gray-800 border-t border-gray-200 pt-1.5">
-              <span>Total</span><span>${total.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-xs text-gray-400">
-              <span>Paid</span><span>${paidAmt.toFixed(2)}</span>
-            </div>
-            <div className={`flex justify-between text-base font-bold pt-0.5 ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-              <span>Balance due</span><span>${balance.toFixed(2)}</span>
-            </div>
           </div>
-
-          <button onClick={checkout} disabled={loading || Object.keys(cart).length === 0}
+          <button onClick={checkout} disabled={loading || cartItems.length === 0}
             className={`w-full py-3 rounded-xl text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${transactionType === 'quick_sale' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}>
             {loading ? 'Processing...' : transactionType === 'quick_sale' ? 'Complete sale' : 'Place custom order'}
           </button>
-
         </div>
       </div>
     </div>

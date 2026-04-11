@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import React from 'react'
 import { getOrders, getBranches, updateOrder, deleteOrder } from '../api/api'
 
 const STATUS_FLOW = ['pending', 'confirmed', 'in_progress', 'ready', 'completed', 'cancelled']
@@ -196,20 +197,24 @@ export default function Orders() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.map(order => (
-                <>
-                  <tr key={order.id} className="hover:bg-gray-50 transition">
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setExpanded(expanded === order.id ? null : order.id)}
-                          className="w-5 h-5 rounded bg-gray-100 text-gray-500 text-xs flex items-center justify-center hover:bg-gray-200 transition">
-                          {expanded === order.id ? '−' : '+'}
-                        </button>
-                        <div>
-                          <p className="font-medium text-gray-800">{order.order_number}</p>
-                          <p className="text-xs text-gray-400">{order.payment_method || 'No method'}</p>
+                <React.Fragment key={order.id}>
+                  <tr className="hover:bg-gray-50 transition">
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setExpanded(expanded === order.id ? null : order.id)}
+                            className="w-5 h-5 rounded bg-gray-100 text-gray-500 text-xs flex items-center justify-center hover:bg-gray-200 transition">
+                            {expanded === order.id ? '−' : '+'}
+                          </button>
+                          <div>
+                            <p className="font-medium text-gray-800">{order.order_number}</p>
+                            {order.customer_name ? (
+                              <p className="text-xs text-indigo-500 font-medium">{order.customer_name}</p>
+                            ) : (
+                              <p className="text-xs text-gray-400">Walk-in · {order.payment_method || 'cash'}</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1">
                         {order.status !== 'cancelled' && order.status !== 'pending' && (
@@ -295,7 +300,7 @@ export default function Orders() {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -373,3 +378,5 @@ export default function Orders() {
     </div>
   )
 }
+
+  

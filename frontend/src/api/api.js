@@ -28,6 +28,7 @@ export const createVariant = (data) => api.post('/variants/', data)
 export const deleteVariant = (id) => api.delete(`/variants/${id}/`)
 export const updateVariant = (variantId, data) => api.put(`/variants/${variantId}/`, data)
 export const getCustomizationServices = () => wrap(api.get('/customization-services/'))
+export const getProductStats = (branchId) => api.get(`/products/stats/?branch=${branchId}`)
 
 
 // Customers
@@ -44,6 +45,9 @@ export const createOrder = (data) => api.post('/orders/', data)
 export const updateOrder = (id, data) => api.put(`/orders/${id}/`, data)
 export const deleteOrder = (id) => api.delete(`/orders/${id}/`)
 export const createOrderItem = (data) => api.post('/order-items/', data)
+export const getNextOrderNumber = (branchId) => api.get('/orders/next_number/?branch=' + branchId)
+export const addPayment = (orderId, data) => api.post('/orders/' + orderId + '/add_payment/', data)
+export const writeOffOrder = (orderId, notes) => api.post('/orders/' + orderId + '/writeoff/', { notes })
 
 // Suppliers
 export const getSuppliers = () => wrap(api.get('/suppliers/'))
@@ -53,6 +57,9 @@ export const updateSupplier = (id, data) => api.put(`/suppliers/${id}/`, data)
 export const getPurchases = (branchId) => wrap(api.get('/purchases/', { params: { branch: branchId } }))
 export const createPurchase = (data) => api.post('/purchases/', data)
 export const updatePurchase = (id, data) => api.put(`/purchases/${id}/`, data)
+export const getSupplierSummary = () => wrap(api.get('/suppliers/summary/'))
+export const getSupplierPurchases = (id) => wrap(api.get(`/suppliers/${id}/purchases/`))
+export const recordPayment = (purchaseId, amount) => api.post(`/purchases/${purchaseId}/record_payment/`, { amount })
 
 // Finance
 export const getExpenses = (branchId) => wrap(api.get('/expenses/', { params: { branch: branchId } }))

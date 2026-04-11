@@ -9,14 +9,15 @@ import {
   updateProduct,
   createVariant,
   updateVariant,   
-  deleteVariant,  
+  deleteVariant,
+  getProductStats,  
 } from '../api/api'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const statusStyle = {
-  in_stock: 'bg-emerald-50 text-emerald-700',
-  low_stock: 'bg-yellow-50 text-yellow-700',
-  out_of_stock: 'bg-rose-50 text-rose-700',
+  in_stock: 'bg-emerald-100 text-emerald-700',
+  low_stock: 'bg-amber-100 text-amber-700',
+  out_of_stock: 'bg-rose-100 text-rose-700',
 }
 const statusLabel = {
   in_stock: 'In stock',
@@ -50,6 +51,7 @@ export default function Products() {
   const [expanded, setExpanded] = useState(null)
   const [form, setForm] = useState(emptyForm())
   const [editingField, setEditingField] = useState(null)
+  const [statsData, setStatsData] = useState(null)
 
   const toNum = (v) => Number(v) || 0
 
@@ -64,14 +66,51 @@ export default function Products() {
   useEffect(() => {
     if (!selectedBranch) return
     setLoading(true)
-    getProducts(selectedBranch.id)
-      .then(res => setProducts(res.data))
+
+    Promise.all([
+      getProducts(selectedBranch.id),
+      getProductStats(selectedBranch.id)
+    ])
+      .then(([productsRes, statsRes]) => {
+        setProducts(productsRes.data)
+        setStatsData(statsRes.data)
+      })
       .finally(() => setLoading(false))
+
   }, [selectedBranch])
 
   const filtered = useMemo(() =>
     products.filter(p => p.name?.toLowerCase().includes(search.toLowerCase()))
   , [products, search])
+
+  const stats = useMemo(() => {
+    if (!statsData) return {
+      totalProducts: 0,
+      totalStock: 0,
+      lowStock: 0,
+      changes: { products: 0, stock: 0, lowStock: 0 }
+    }
+
+    const calcChange = (current, prev) => {
+      if (!prev || prev === 0) return 0
+      return (((current - prev) / prev) * 100).toFixed(1)
+    }
+
+    return {
+      totalProducts: statsData.current.total_products,
+      totalStock: statsData.current.total_stock,
+      lowStock: statsData.current.low_stock,
+
+      changes: {
+        products: calcChange(
+          statsData.current.total_products,
+          statsData.previous.total_products
+        ),
+        stock: 0,       // no history yet
+        lowStock: 0
+      }
+    }
+  }, [statsData])
 
   const overallStatus = (product) => {
     if (!product.variants?.length) return 'out_of_stock'
@@ -82,8 +121,9 @@ export default function Products() {
     return 'out_of_stock'
   }
 
-  const totalAvailable = (product) =>
-    product.variants?.reduce((s, v) => s + toNum(v.available_quantity), 0) ?? toNum(product.stock_quantity)
+    const totalAvailable = (product) =>
+      product.variants?.reduce((s, v) => s + Math.max(0, toNum(v.available_quantity)), 0)
+      ?? Math.max(0, toNum(product.stock_quantity))
 
   const updateVariantField = (idx, field, val) => {
     const next = [...form.variants]
@@ -102,10 +142,16 @@ export default function Products() {
 
   const { variants, ...productData } = form
 
-  const payload = {
-    ...productData,
+    const payload = {
+    name: form.name,
+    description: form.description || '',
+    item_type: form.item_type,
     base_price: toNum(form.base_price),
+    stock_quantity: toNum(form.stock_quantity),
+    low_stock_threshold: toNum(form.low_stock_threshold),
     branch: selectedBranch.id,
+    category: form.category || null,
+    is_active: form.is_active ?? true,
   }
 
   // 🚫 prevent duplicates
@@ -142,21 +188,25 @@ export default function Products() {
       await Promise.all(toDelete.map(id => deleteVariant(id)))
     }
 
-    // 🔁 UPDATE + ➕ CREATE
+        // 🔁 UPDATE existing + ➕ CREATE new variants
     await Promise.all(
       variants
         .filter(v => v.color?.trim() && v.size)
         .map(v => {
           if (v.id) {
+            // UPDATE — must include product field
             return updateVariant(v.id, {
+              product: productId,
               size: v.size,
               color: v.color,
               stock_quantity: toNum(v.stock_quantity),
+              committed_quantity: toNum(v.committed_quantity) || 0,
               cost_price: toNum(v.cost_price),
               extra_price: toNum(v.extra_price),
               is_available: true,
             })
           } else {
+            // CREATE new variant
             return createVariant({
               product: productId,
               size: v.size,
@@ -213,7 +263,7 @@ export default function Products() {
     setForm(emptyForm(selectedBranch?.id))
   }
     return (
-    <div className="p-8">
+    <div className="p-8 bg-slate-50 min-h-screen font-sans">
 
       {/* header */}
       <div className="flex items-center justify-between mb-6">
@@ -230,7 +280,7 @@ export default function Products() {
             resetForm()
             setShowForm(true)
           }}
-            className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+            className="bg-blue-500 text-white text-sm px-4 py-2 rounded-xl hover:bg-blue-600 transition shadow-sm">
             + Add product
           </button>
         </div>
@@ -240,36 +290,66 @@ export default function Products() {
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
         className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-xl border">
-          <p className="text-xs text-gray-400">Total Products</p>
-          <p className="text-xl font-semibold">{products.length}</p>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border">
-          <p className="text-xs text-gray-400">Total Stock</p>
-          <p className="text-xl font-semibold">
-            {products.reduce((s, p) => s + totalAvailable(p), 0)}
-          </p>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border">
-          <p className="text-xs text-gray-400">Low Stock Items</p>
-          <p className="text-xl font-semibold text-yellow-600">
-            {products.filter(p => overallStatus(p) === 'low_stock').length}
-          </p>
-        </div>
+               <div className="grid grid-cols-4 gap-4 mb-8">
+        {[
+          {
+            title: 'TOTAL PRODUCTS',
+            value: stats.totalProducts,
+            sub: stats.changes.products !== 0 ? `↗ ${Math.abs(stats.changes.products)}% from last month` : 'No change',
+            subColor: stats.changes.products >= 0 ? 'text-emerald-600' : 'text-rose-500',
+            icon: '📦', iconBg: 'bg-blue-100',
+          },
+          {
+            title: 'TOTAL STOCK',
+            value: stats.totalStock,
+            sub: 'Units available across variants',
+            subColor: 'text-gray-400',
+            icon: '🗂️', iconBg: 'bg-emerald-100',
+          },
+          {
+            title: 'LOW STOCK',
+            value: stats.lowStock,
+            sub: stats.lowStock > 0 ? `${stats.lowStock} items need restocking` : '✓ All stocked up',
+            subColor: stats.lowStock > 0 ? 'text-amber-600' : 'text-emerald-600',
+            icon: '⚠️', iconBg: 'bg-amber-100',
+          },
+          {
+            title: 'OUT OF STOCK',
+            value: statsData?.current?.out_of_stock ?? 0,
+            sub: (statsData?.current?.out_of_stock ?? 0) > 0 ? 'Needs immediate restocking' : '✓ All variants stocked',
+            subColor: (statsData?.current?.out_of_stock ?? 0) > 0 ? 'text-rose-600' : 'text-emerald-600',
+            icon: '🚫', iconBg: 'bg-rose-100',
+          },
+        ].map((card, i) => (
+          <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-400 tracking-widest mb-2">{card.title}</p>
+              <p className="text-3xl font-bold text-slate-900 mb-1">{card.value}</p>
+              <p className={`text-xs font-medium ${card.subColor}`}>{card.sub}</p>
+            </div>
+            <div className={`w-11 h-11 flex items-center justify-center rounded-xl ${card.iconBg} shrink-0 ml-3`}>
+              <span className="text-xl">{card.icon}</span>
+            </div>
+          </div>
+        ))}
       </div>
-
+   
       {/* product table */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       {loading ? (
-        <div className="p-8 text-center text-gray-400 text-sm">Loading products...</div>
-      ) : filtered.length === 0 ? (
-        <div className="p-8 text-center text-gray-400 text-sm">No products found.</div>
-      ) : (
+      <div className="p-6 space-y-3">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="h-10 bg-slate-100 animate-pulse rounded-lg" />
+        ))}
+      </div>
+    ) : filtered.length === 0 ? (
+      <div className="p-12 text-center">
+        <div className="text-slate-300 text-4xl mb-3">📦</div>
+        <p className="text-slate-500 text-sm">No products found</p>
+      </div>
+    ) : (
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+          <thead className="bg-slate-50 text-slate-400 text-[11px] uppercase tracking-wider sticky top-0 z-10">
             <tr>
               <th className="px-5 py-3 text-left">Product</th>
               <th className="px-5 py-3 text-left">Type</th>
@@ -279,16 +359,16 @@ export default function Products() {
               <th className="px-5 py-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-slate-100">
             {filtered.map(p => {
               const st = overallStatus(p)
               const stock = totalAvailable(p)
               const isExpanded = expanded === p.id
               return (
                 <React.Fragment key={p.id}>
-                  <tr className="hover:bg-indigo-50 transition duration-200 cursor-pointer">
+                  <tr className="group hover:bg-slate-50/60 transition-colors duration-150 cursor-pointer">
                     {/* Product main row */}
-                    <td className="px-5 py-3">
+                    <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         {p.variants?.length > 0 && (
                           <button
@@ -314,13 +394,13 @@ export default function Products() {
                           ) : (
                             <p
                               onDoubleClick={() => setEditingField(`name-${p.id}`)}
-                              className="font-medium text-gray-800 cursor-pointer hover:text-indigo-600"
+                              className="font-medium text-slate-900 cursor-pointer hover:text-indigo-600"
                             >
                               {p.name}
                             </p>
                           )}
                           {p.category_name && (
-                            <p className="text-xs text-gray-400">{p.category_name}</p>
+                            <p className="text-xs text-slate-400">{p.category_name}</p>
                           )}
                         </div>
                       </div>
@@ -329,8 +409,8 @@ export default function Products() {
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                           p.item_type === 'customizable'
-                            ? 'bg-purple-50 text-purple-700'
-                            : 'bg-gray-100 text-gray-600'
+                            ? 'bg-purple-100 text-purple-700'
+                            : 'bg-slate-100 text-slate-600'
                         }`}
                       >
                         {p.item_type}
@@ -342,25 +422,27 @@ export default function Products() {
                     <td className="px-5 py-3 text-gray-600">{stock} units</td>
                     <td className="px-5 py-3">
                       <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusStyle[st]}`}
+                        className={`text-xs px-3 py-1 rounded-full font-medium ${statusStyle[st]}`}
                       >
                         {statusLabel[st]}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-right">
+                    <div className="opacity-0 group-hover:opacity-100 transition flex justify-end gap-3">
                       <button
                         onClick={() => handleEdit(p)}
-                        className="text-indigo-600 hover:text-indigo-800 text-xs mr-3"
+                        className="text-slate-400 hover:text-slate-700 text-xs"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => handleDelete(p.id)}
-                        className="text-rose-500 hover:text-rose-700 text-xs"
+                        className="text-slate-400 hover:text-rose-600 text-xs"
                       >
                         Delete
                       </button>
-                    </td>
+                    </div>
+                  </td>
                   </tr>
 
                   {/* Expanded variants row */}

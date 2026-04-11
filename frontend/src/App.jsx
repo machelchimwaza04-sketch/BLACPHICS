@@ -101,15 +101,15 @@ export default function App() {
           </div>
 
           {/* Main Content */}
-          <main className="flex-1 p-6 overflow-auto">
+          <main className="flex-1 overflow-hidden flex flex-col">
             <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/products" element={<Products />} />
-              <Route path="/customers" element={<Customers />} />
-              <Route path="/orders" element={<Orders />} />
-              <Route path="/suppliers" element={<Suppliers />} />
-              <Route path="/finance" element={<Finance />} />
-              <Route path="/pos" element={<POS />} />
+              <Route path="/" element={<div className="flex-1 overflow-auto p-6"><Dashboard /></div>} />
+              <Route path="/products" element={<div className="flex-1 overflow-auto p-6"><Products /></div>} />
+              <Route path="/customers" element={<div className="flex-1 overflow-auto p-6"><Customers /></div>} />
+              <Route path="/orders" element={<div className="flex-1 overflow-auto p-6"><Orders /></div>} />
+              <Route path="/suppliers" element={<div className="flex-1 overflow-auto p-6"><Suppliers /></div>} />
+              <Route path="/finance" element={<div className="flex-1 overflow-auto p-6"><Finance /></div>} />
+              <Route path="/pos" element={<div className="flex-1 overflow-hidden flex flex-col h-full"><POS /></div>} />
             </Routes>
           </main>
 

@@ -129,6 +129,56 @@ class Order(models.Model):
     @property
     def balance_due(self):
         return self.discounted_total - self.amount_paid
+    
+    @property
+    def change_due(self):
+        overpaid = float(self.amount_paid) - float(self.discounted_total)
+        return round(max(0, overpaid), 2)
+
+    @property
+    def credit_balance(self):
+        overpaid = float(self.amount_paid) - float(self.discounted_total)
+        return round(max(0, overpaid), 2)
+
+    def recalculate_payment_status(self):
+        total_paid = sum(
+            float(p.amount) for p in self.payments.filter(payment_type='payment')
+        ) - sum(
+            float(p.amount) for p in self.payments.filter(payment_type='reversal')
+        )
+        self.amount_paid = total_paid
+        discounted = float(self.discounted_total)
+        if total_paid <= 0:
+            self.payment_status = 'unpaid'
+        elif total_paid < discounted:
+            self.payment_status = 'partial'
+        else:
+            self.payment_status = 'paid'
+        self.save(update_fields=['amount_paid', 'payment_status'])
+
+    @classmethod
+    def generate_order_number(cls, branch_id):
+        """
+        Generates a unique auto-incrementing order number per branch.
+        Scans existing order numbers to find the highest used number
+        and increments from there, guaranteeing no duplicates.
+        """
+        existing = cls.objects.filter(branch_id=branch_id)
+        max_num = 0
+        for order in existing:
+            try:
+                parts = order.order_number.split('-')
+                num = int(parts[-1])
+                if num > max_num:
+                    max_num = num
+            except (ValueError, IndexError):
+                continue
+        candidate = f"ORD-{str(max_num + 1).zfill(5)}"
+        # Safety check — if somehow it still exists, keep incrementing
+        while cls.objects.filter(order_number=candidate).exists():
+            max_num += 1
+            candidate = f"ORD-{str(max_num + 1).zfill(5)}"
+        return candidate
 
     @property
     def is_quick_sale(self):
@@ -272,23 +322,18 @@ class OrderItem(models.Model):
     # SAVE LOGIC (CORE ENGINE)
     # =========================
     def save(self, *args, **kwargs):
-        is_new = self.pk is None
-
-        # Lock final price
+        # Lock final price on first save
         if not self.final_unit_price:
             self.final_unit_price = self.override_price or self.unit_price
 
-        # Set stock status snapshot
+        # Snapshot stock status at time of sale
         if not self.stock_status_at_sale:
             self.stock_status_at_sale = self.get_stock_status()
 
         super().save(*args, **kwargs)
-
-        # 🔥 Commit stock for custom orders
-        if is_new and self.order.is_custom_order:
-            if self.variant:
-                self.variant.committed_quantity += self.quantity
-                self.variant.save()
+        # NOTE: stock deduction and committed quantity changes
+        # are handled entirely by signals in orders/signals.py
+        # Do NOT put stock logic here to avoid double deductions.
 
     # =========================
     # CALCULATIONS
@@ -299,3 +344,45 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity} x {self.product.name}"
+    
+    
+
+# =========================================================
+# PAYMENTS
+# =========================================================
+
+class Payment(models.Model):
+
+    PAYMENT_METHOD_CHOICES = [
+        ('cash', 'Cash'),
+        ('card', 'Card'),
+        ('mobile_money', 'Mobile Money'),
+        ('bank_transfer', 'Bank Transfer'),
+    ]
+
+    PAYMENT_TYPE_CHOICES = [
+        ('payment', 'Payment'),
+        ('overpayment', 'Overpayment Credit'),
+        ('reversal', 'Reversal'),
+        ('writeoff', 'Write Off'),
+    ]
+
+    order = models.ForeignKey(
+        Order, on_delete=models.CASCADE, related_name='payments'
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    method = models.CharField(
+        max_length=20, choices=PAYMENT_METHOD_CHOICES, default='cash'
+    )
+    payment_type = models.CharField(
+        max_length=20, choices=PAYMENT_TYPE_CHOICES, default='payment'
+    )
+    reference = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Payment ${self.amount} on {self.order.order_number}"
+
+    class Meta:
+        ordering = ['-created_at']
