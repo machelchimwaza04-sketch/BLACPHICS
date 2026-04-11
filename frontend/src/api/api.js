@@ -29,6 +29,7 @@ export const deleteVariant = (id) => api.delete(`/variants/${id}/`)
 export const updateVariant = (variantId, data) => api.put(`/variants/${variantId}/`, data)
 export const getCustomizationServices = () => wrap(api.get('/customization-services/'))
 export const getProductStats = (branchId) => api.get(`/products/stats/?branch=${branchId}`)
+export const getAlerts = (branchId, sendEmail = false) => api.get('/products/alerts/?branch=' + branchId + (sendEmail ? '&send_email=true' : ''))
 
 
 // Customers

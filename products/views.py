@@ -65,6 +65,29 @@ class ProductViewSet(viewsets.ModelViewSet):
             'current': get_stats(current_qs),
             'previous': get_stats(prev_qs),
         })
+    
+    @action(detail=False, methods=['get'])
+    def alerts(self, request):
+        from .alerts import get_low_stock_alerts, send_low_stock_email
+        branch_id = request.query_params.get('branch')
+        send_email = request.query_params.get('send_email') == 'true'
+
+        alerts = get_low_stock_alerts(branch_id=branch_id)
+
+        if send_email and branch_id:
+            from branches.models import Branch
+            try:
+                branch = Branch.objects.get(id=branch_id)
+                send_low_stock_email(branch)
+            except Branch.DoesNotExist:
+                pass
+
+        return Response({
+            'count': len(alerts),
+            'out_of_stock': sum(1 for a in alerts if a['status'] == 'out_of_stock'),
+            'low_stock': sum(1 for a in alerts if a['status'] == 'low_stock'),
+            'alerts': alerts,
+        })
 
 
 class ProductVariantViewSet(viewsets.ModelViewSet):
