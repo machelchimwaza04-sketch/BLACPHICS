@@ -63,11 +63,14 @@ export const getSupplierPurchases = (id) => wrap(api.get(`/suppliers/${id}/purch
 export const recordPayment = (purchaseId, amount) => api.post(`/purchases/${purchaseId}/record_payment/`, { amount })
 
 // Finance
-export const getExpenses = (branchId) => wrap(api.get('/expenses/', { params: { branch: branchId } }))
+export const getPLReport = (branchId, period = 'month') =>api.get(`/revenue/pl_report/?branch=${branchId}&period=${period}`)
+export const getExpenses = (branchId) => wrap(api.get(`/expenses/?branch=${branchId}`))
 export const createExpense = (data) => api.post('/expenses/', data)
-export const getRevenue = (branchId) => wrap(api.get('/revenue/', { params: { branch: branchId } }))
+export const getExpenseCategories = () => wrap(api.get('/expense-categories/'))
+export const getRevenue = (branchId) => wrap(api.get(`/revenue/?branch=${branchId}`))
 export const createRevenue = (data) => api.post('/revenue/', data)
 export const getReports = (branchId) => wrap(api.get('/reports/', { params: { branch: branchId } }))
 export const createReport = (data) => api.post('/reports/', data)
+export const exportPL = (branchId, period, format) => api.get(`/api/export/pl/?branch=${branchId}&period=${period}&format=${format}`)
 
 export default api
