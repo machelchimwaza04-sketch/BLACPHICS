@@ -38,7 +38,11 @@ class Expense(models.Model):
 class Revenue(models.Model):
     SOURCE_CHOICES = [
         ('sales', 'Product Sales'),
+        ('sale', 'Sale'),
         ('customization', 'Customization Fees'),
+        ('refund', 'Refund received'),
+        ('investment', 'Investment'),
+        ('grant', 'Grant'),
         ('other', 'Other'),
     ]
 
@@ -89,3 +93,26 @@ class ProfitLossReport(models.Model):
 
     class Meta:
         ordering = ['-start_date']
+
+
+class DailyPLSnapshot(models.Model):
+    """
+    Optional daily rollup for faster reporting and audit (populate via job or management command).
+    """
+    branch = models.ForeignKey(
+        Branch, on_delete=models.CASCADE, related_name='daily_pl_snapshots'
+    )
+    date = models.DateField()
+    total_revenue = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_expenses = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    cogs = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    net_profit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date']
+        unique_together = [['branch', 'date']]
+        verbose_name = 'Daily P&L snapshot'
+
+    def __str__(self):
+        return f'{self.branch_id} {self.date}'

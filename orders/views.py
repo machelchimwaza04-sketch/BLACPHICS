@@ -1,25 +1,30 @@
+from django.db.models import Prefetch
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from common.branch_scope import BranchScopedQuerysetMixin
 from .models import Order, OrderItem, Payment
 from .serializers import OrderSerializer, OrderItemSerializer, PaymentSerializer
 
 
-class OrderViewSet(viewsets.ModelViewSet):
+class OrderViewSet(BranchScopedQuerysetMixin, viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['order_number', 'status', 'payment_status']
 
     def get_queryset(self):
-        queryset = Order.objects.all()
-        branch = self.request.query_params.get('branch')
+        qs = super().get_queryset()
         status = self.request.query_params.get('status')
-        if branch:
-            queryset = queryset.filter(branch=branch)
         if status:
-            queryset = queryset.filter(status=status)
-        return queryset
+            qs = qs.filter(status=status)
+        return qs.select_related('branch', 'customer').prefetch_related(
+            Prefetch(
+                'items',
+                queryset=OrderItem.objects.select_related('product', 'variant'),
+            ),
+            'payments',
+        )
 
     @action(detail=False, methods=['get'])
     def next_number(self, request):

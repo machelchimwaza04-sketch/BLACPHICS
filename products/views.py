@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from datetime import timedelta
+from common.branch_scope import BranchScopedQuerysetMixin
 from .models import Category, Product, ProductVariant, CustomizationService
 from .serializers import (
     CategorySerializer, ProductSerializer,
@@ -15,18 +16,11 @@ class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
 
 
-class ProductViewSet(viewsets.ModelViewSet):
+class ProductViewSet(BranchScopedQuerysetMixin, viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'description', 'item_type']
-
-    def get_queryset(self):
-        queryset = Product.objects.all()
-        branch = self.request.query_params.get('branch')
-        if branch:
-            queryset = queryset.filter(branch=branch)
-        return queryset
 
     @action(detail=False, methods=['get'])
     def stats(self, request):

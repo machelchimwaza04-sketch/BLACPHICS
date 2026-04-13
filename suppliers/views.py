@@ -1,9 +1,11 @@
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Sum, Count, F
+from common.branch_scope import BranchScopedQuerysetMixin
 from .models import Supplier, Purchase, PurchaseItem
 from .serializers import SupplierSerializer, PurchaseSerializer, PurchaseItemSerializer
+from .selectors import supplier_summary_rows
+from .services.purchase_service import PurchaseService
 
 
 class SupplierViewSet(viewsets.ModelViewSet):
@@ -14,30 +16,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-        suppliers = Supplier.objects.filter(is_active=True)
-        data = []
-        for s in suppliers:
-            purchases = Purchase.objects.filter(supplier=s)
-            total_owed = sum(
-                float(p.total_amount) - float(p.amount_paid)
-                for p in purchases
-            )
-            total_purchases = purchases.count()
-            has_overdue = purchases.filter(
-                payment_status__in=['unpaid', 'partial'],
-                status='received'
-            ).exists()
-            data.append({
-                'id': s.id,
-                'name': s.name,
-                'contact_person': s.contact_person,
-                'phone': s.phone,
-                'email': s.email,
-                'total_owed': round(total_owed, 2),
-                'total_purchases': total_purchases,
-                'account_status': 'overdue' if has_overdue else 'clear' if total_owed == 0 else 'outstanding',
-            })
-        return Response(data)
+        return Response(supplier_summary_rows())
 
     @action(detail=True, methods=['get'])
     def purchases(self, request, pk=None):
@@ -47,38 +26,28 @@ class SupplierViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class PurchaseViewSet(viewsets.ModelViewSet):
+class PurchaseViewSet(BranchScopedQuerysetMixin, viewsets.ModelViewSet):
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['purchase_number', 'status']
 
     def get_queryset(self):
-        queryset = Purchase.objects.all()
-        branch = self.request.query_params.get('branch')
+        qs = super().get_queryset()
         supplier = self.request.query_params.get('supplier')
-        if branch:
-            queryset = queryset.filter(branch=branch)
         if supplier:
-            queryset = queryset.filter(supplier=supplier)
-        return queryset
+            qs = qs.filter(supplier=supplier)
+        return qs
 
     @action(detail=True, methods=['post'])
     def record_payment(self, request, pk=None):
         purchase = self.get_object()
         amount = float(request.data.get('amount', 0))
-        if amount <= 0:
-            return Response({'error': 'Invalid amount'}, status=400)
-        new_paid = float(purchase.amount_paid) + amount
-        if new_paid >= float(purchase.total_amount):
-            purchase.amount_paid = purchase.total_amount
-            purchase.payment_status = 'paid'
-        else:
-            purchase.amount_paid = new_paid
-            purchase.payment_status = 'partial'
-        purchase.save()
-        serializer = PurchaseSerializer(purchase)
-        return Response(serializer.data)
+        try:
+            updated = PurchaseService.record_payment(purchase, amount)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=400)
+        return Response(PurchaseSerializer(updated).data)
 
 
 class PurchaseItemViewSet(viewsets.ModelViewSet):

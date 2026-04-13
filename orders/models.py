@@ -203,26 +203,11 @@ class Order(models.Model):
             self.payment_status = 'paid'
 
     # =========================
-    # COMPLETE ORDER (CRITICAL)
+    # COMPLETE ORDER (delegated — stock via signals / line items)
     # =========================
     def complete_order(self):
-        if self.status == 'completed':
-            return
-
-        for item in self.items.all():
-            if item.variant:
-                if self.is_quick_sale:
-                    item.variant.stock_quantity -= item.quantity
-                else:
-                    # custom order fulfillment
-                    item.variant.committed_quantity -= item.quantity
-                    item.variant.stock_quantity -= item.quantity
-
-                item.variant.save()
-
-        self.status = 'completed'
-        self.update_payment_status()
-        self.save()
+        from orders.services.order_service import OrderService
+        OrderService.transition_to_completed(self)
 
 
 # =========================================================
