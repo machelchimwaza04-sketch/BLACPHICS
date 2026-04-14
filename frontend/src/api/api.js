@@ -40,7 +40,7 @@ export const updateCustomer = (id, data) => api.put(`/customers/${id}/`, data)
 export const deleteCustomer = (id) => api.delete(`/customers/${id}/`)
 
 // Orders
-export const getOrders = (branchId) => wrap(api.get('/orders/', { params: { branch: branchId } }))
+export const getOrders = (branchId, params = {}) => wrap(api.get('/orders/', { params: { branch: branchId, ...params } }))
 export const getOrder = (id) => api.get(`/orders/${id}/`)
 export const createOrder = (data) => api.post('/orders/', data)
 export const updateOrder = (id, data) => api.put(`/orders/${id}/`, data)
@@ -71,6 +71,6 @@ export const getRevenue = (branchId) => wrap(api.get(`/revenue/?branch=${branchI
 export const createRevenue = (data) => api.post('/revenue/', data)
 export const getReports = (branchId) => wrap(api.get('/reports/', { params: { branch: branchId } }))
 export const createReport = (data) => api.post('/reports/', data)
-export const exportPL = (branchId, period, format) => api.get(`/api/export/pl/?branch=${branchId}&period=${period}&format=${format}`)
+export const exportPL = (branchId, period, format) => api.get(`/export/pl/?branch=${branchId}&period=${period}&format=${format}`)
 
 export default api

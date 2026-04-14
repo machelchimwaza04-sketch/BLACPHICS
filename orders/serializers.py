@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 from django.db.models import Sum
 from .models import Order, OrderItem, Payment, Customer
@@ -21,6 +22,33 @@ class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
         fields = '__all__'
+
+
+class OrderListSerializer(serializers.ModelSerializer):
+    customer_name = serializers.SerializerMethodField()
+    payment_method_display = serializers.SerializerMethodField()
+    balance_due = serializers.ReadOnlyField()
+    discounted_total = serializers.ReadOnlyField()
+    is_quick_sale = serializers.ReadOnlyField()
+    is_custom_order = serializers.ReadOnlyField()
+
+    class Meta:
+        model = Order
+        fields = [
+            'id', 'order_number', 'transaction_type', 'status',
+            'payment_status', 'payment_method', 'payment_method_display',
+            'total_amount', 'amount_paid', 'balance_due', 'discount_amount',
+            'discounted_total', 'customer_name', 'created_at',
+            'is_quick_sale', 'is_custom_order',
+        ]
+
+    def get_customer_name(self, obj):
+        if obj.customer:
+            return f"{obj.customer.first_name} {obj.customer.last_name}"
+        return None
+
+    def get_payment_method_display(self, obj):
+        return obj.get_payment_method_display() if obj.payment_method else None
 
 
 # =========================================================
@@ -52,6 +80,7 @@ class OrderSerializer(serializers.ModelSerializer):
     # =====================================================
     # CREATE ORDER (FULLY INTEGRATED)
     # =====================================================
+    @transaction.atomic
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
         payments_data = validated_data.pop('payments', [])
@@ -99,14 +128,27 @@ class OrderSerializer(serializers.ModelSerializer):
         # =========================
         # FINAL STATUS UPDATE
         # =========================
-        order.update_payment_status()
-        order.save()
+        order.recalculate_payment_status()
 
         return order
 
     # =====================================================
     # OPTIONAL: UPDATE ORDER
     # =====================================================
+    @transaction.atomic
+    def validate_discount_amount(self, value):
+        if value < 0:
+            raise serializers.ValidationError('Discount cannot be negative.')
+        return value
+
+    def validate(self, data):
+        if self.instance and 'discount_amount' in data and self.instance.amount_paid > 0:
+            raise serializers.ValidationError(
+                'Cannot modify discount after payments have been recorded. ' \
+                'Use refund or credit adjustments instead.'
+            )
+        return data
+
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items', None)
         payments_data = validated_data.pop('payments', None)
@@ -144,7 +186,7 @@ class OrderSerializer(serializers.ModelSerializer):
             for payment_data in payments_data:
                 Payment.objects.create(order=instance, **payment_data)
 
-        instance.update_payment_status()
+        instance.recalculate_payment_status()
         instance.save()
 
         return instance

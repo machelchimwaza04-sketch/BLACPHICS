@@ -1,4 +1,4 @@
-from django.db import models
+﻿from django.db import models
 from branches.models import Branch
 
 
@@ -38,7 +38,11 @@ class Expense(models.Model):
 class Revenue(models.Model):
     SOURCE_CHOICES = [
         ('sales', 'Product Sales'),
+        ('sale', 'Sale'),
         ('customization', 'Customization Fees'),
+        ('refund', 'Refund received'),
+        ('investment', 'Investment'),
+        ('grant', 'Grant'),
         ('other', 'Other'),
     ]
 
@@ -89,3 +93,54 @@ class ProfitLossReport(models.Model):
 
     class Meta:
         ordering = ['-start_date']
+
+
+class DailyPLSnapshot(models.Model):
+    """
+    Daily P&L snapshot for instant historical reporting.
+    Populated daily at midnight via Celery task or management command.
+    """
+    branch = models.ForeignKey(
+        Branch, on_delete=models.CASCADE, related_name='daily_pl_snapshots'
+    )
+    snapshot_date = models.DateField()
+
+    # Sales
+    sales_revenue = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    net_sales = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_collected = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    order_count = models.IntegerField(default=0)
+
+    # COGS & Profit
+    cogs = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gross_profit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gross_margin_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    # Expenses
+    manual_expenses = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    supplier_payments = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    # Revenue
+    manual_revenue = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    # Totals
+    total_revenue = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_expenses = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    net_profit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    net_margin_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-snapshot_date']
+        unique_together = [['branch', 'snapshot_date']]
+        verbose_name = 'Daily P&L snapshot'
+        indexes = [
+            models.Index(fields=['-snapshot_date']),
+            models.Index(fields=['branch', '-snapshot_date']),
+        ]
+
+    def __str__(self):
+        return f'{self.branch.name} - {self.snapshot_date}'

@@ -1,4 +1,6 @@
-from django.db import models
+from decimal import Decimal
+
+from django.db import models, transaction
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 
@@ -81,8 +83,8 @@ class Order(models.Model):
         blank=True
     )
 
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     discount_reason = models.CharField(max_length=255, blank=True)
 
     # 🔥 Audit trail
@@ -92,8 +94,8 @@ class Order(models.Model):
         related_name='discount_approvals'
     )
 
-    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
 
     # =========================
     # EXTRA
@@ -141,19 +143,15 @@ class Order(models.Model):
         return round(max(0, overpaid), 2)
 
     def recalculate_payment_status(self):
-        total_paid = sum(
-            float(p.amount) for p in self.payments.filter(payment_type='payment')
-        ) - sum(
-            float(p.amount) for p in self.payments.filter(payment_type='reversal')
-        )
+        total_paid = Decimal('0.00')
+        for payment in self.payments.all():
+            if payment.payment_type in ['payment', 'overpayment', 'writeoff']:
+                total_paid += payment.amount
+            elif payment.payment_type == 'reversal':
+                total_paid -= payment.amount
+
         self.amount_paid = total_paid
-        discounted = float(self.discounted_total)
-        if total_paid <= 0:
-            self.payment_status = 'unpaid'
-        elif total_paid < discounted:
-            self.payment_status = 'partial'
-        else:
-            self.payment_status = 'paid'
+        self.update_payment_status()
         self.save(update_fields=['amount_paid', 'payment_status'])
 
     @classmethod
@@ -202,6 +200,20 @@ class Order(models.Model):
         else:
             self.payment_status = 'paid'
 
+    def apply_discount(self, amount, reason='', approved_by=None):
+        if amount < 0:
+            raise ValidationError('Discount amount cannot be negative.')
+        if amount > self.total_amount:
+            raise ValidationError('Discount cannot exceed order total.')
+        if self.amount_paid > 0:
+            raise ValidationError(
+                'Cannot apply or modify discount after payments have been recorded.'
+            )
+        self.discount_amount = amount
+        self.discount_reason = reason
+        self.discount_approved_by = approved_by
+        self.save(update_fields=['discount_amount', 'discount_reason', 'discount_approved_by'])
+
     # =========================
     # COMPLETE ORDER (CRITICAL)
     # =========================
@@ -209,20 +221,37 @@ class Order(models.Model):
         if self.status == 'completed':
             return
 
-        for item in self.items.all():
-            if item.variant:
+        with transaction.atomic():
+            for item in self.items.select_related('variant').all():
+                if not item.variant:
+                    continue
+                variant = ProductVariant.objects.select_for_update().get(pk=item.variant.pk)
                 if self.is_quick_sale:
-                    item.variant.stock_quantity -= item.quantity
+                    available = variant.stock_quantity - variant.committed_quantity
+                    if item.quantity > available:
+                        raise ValidationError(
+                            f"Not enough stock to complete quick sale item {item.product.name}. "
+                            f"Available: {available}, requested: {item.quantity}."
+                        )
+                    variant.stock_quantity = max(0, variant.stock_quantity - item.quantity)
                 else:
-                    # custom order fulfillment
-                    item.variant.committed_quantity -= item.quantity
-                    item.variant.stock_quantity -= item.quantity
+                    if item.quantity > variant.committed_quantity:
+                        raise ValidationError(
+                            f"Reserved quantity mismatch for custom order item {item.product.name}. "
+                            f"Reserved: {variant.committed_quantity}, required: {item.quantity}."
+                        )
+                    if item.quantity > variant.stock_quantity:
+                        raise ValidationError(
+                            f"Not enough stock to complete custom order item {item.product.name}. "
+                            f"Available: {variant.stock_quantity}, requested: {item.quantity}."
+                        )
+                    variant.stock_quantity = max(0, variant.stock_quantity - item.quantity)
+                    variant.committed_quantity = max(0, variant.committed_quantity - item.quantity)
+                variant.save()
 
-                item.variant.save()
-
-        self.status = 'completed'
-        self.update_payment_status()
-        self.save()
+            self.status = 'completed'
+            self.update_payment_status()
+            self.save()
 
 
 # =========================================================
@@ -274,7 +303,7 @@ class OrderItem(models.Model):
     customization_details = models.TextField(blank=True)
 
     customization_price = models.DecimalField(
-        max_digits=10, decimal_places=2, default=0.00
+        max_digits=10, decimal_places=2, default=Decimal('0.00')
     )
     services = models.ManyToManyField(
         CustomizationService,
@@ -380,6 +409,15 @@ class Payment(models.Model):
     reference = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.order.recalculate_payment_status()
+
+    def delete(self, *args, **kwargs):
+        order = self.order
+        super().delete(*args, **kwargs)
+        order.recalculate_payment_status()
 
     def __str__(self):
         return f"Payment ${self.amount} on {self.order.order_number}"

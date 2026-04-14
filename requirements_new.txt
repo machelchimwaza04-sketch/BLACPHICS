@@ -1,4 +1,4 @@
-a s g i r e f = = 3 . 1 1 . 1 
+﻿a s g i r e f = = 3 . 1 1 . 1 
  D j a n g o = = 6 . 0 . 3 
  d j a n g o r e s t f r a m e w o r k = = 3 . 1 7 . 1 
  d j a n g o - c o r s - h e a d e r s = = 4 . 9 . 0 
