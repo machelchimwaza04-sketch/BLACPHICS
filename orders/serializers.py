@@ -1,7 +1,9 @@
 from django.db import transaction
 from rest_framework import serializers
 from django.db.models import Sum
-from .models import Order, OrderItem, Payment, Customer
+from customers.models import Customer
+from common.mixins import StrictBranchSerializerMixin
+from .models import Order, OrderItem, Payment
 
 
 # =========================================================
@@ -11,6 +13,15 @@ class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = '__all__'
+        extra_kwargs = {
+            'order': {'required': False},
+        }
+
+    def create(self, validated_data):
+        order = self.context.get('order')
+        if order is not None:
+            validated_data['order'] = order
+        return super().create(validated_data)
 
 
 # =========================================================
@@ -22,6 +33,15 @@ class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
         fields = '__all__'
+        extra_kwargs = {
+            'order': {'required': False},
+        }
+
+    def create(self, validated_data):
+        order = self.context.get('order')
+        if order is not None:
+            validated_data['order'] = order
+        return super().create(validated_data)
 
 
 class OrderListSerializer(serializers.ModelSerializer):
@@ -54,7 +74,8 @@ class OrderListSerializer(serializers.ModelSerializer):
 # =========================================================
 # ORDER SERIALIZER (POS CORE)
 # =========================================================
-class OrderSerializer(serializers.ModelSerializer):
+class OrderSerializer(StrictBranchSerializerMixin, serializers.ModelSerializer):
+    order_number = serializers.CharField(required=False, allow_blank=True)
     # read_only=True is critical — items are created separately via /api/order-items/
     items = OrderItemSerializer(many=True, read_only=True)
     payments = PaymentSerializer(many=True, read_only=True)
@@ -84,6 +105,8 @@ class OrderSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
         payments_data = validated_data.pop('payments', [])
+        # Remove idempotency_key as it's not a model field
+        validated_data.pop('idempotency_key', None)
 
         order = Order.objects.create(**validated_data)
 
@@ -103,10 +126,11 @@ class OrderSerializer(serializers.ModelSerializer):
             total += item.subtotal
 
         # =========================
-        # UPDATE TOTAL
+        # UPDATE TOTAL (only if items were created in this request)
         # =========================
-        order.total_amount = total
-        order.save()
+        if items_data:
+            order.total_amount = total
+            order.save()
 
         # =========================
         # CREATE PAYMENTS
@@ -135,19 +159,10 @@ class OrderSerializer(serializers.ModelSerializer):
     # =====================================================
     # OPTIONAL: UPDATE ORDER
     # =====================================================
-    @transaction.atomic
     def validate_discount_amount(self, value):
         if value < 0:
             raise serializers.ValidationError('Discount cannot be negative.')
         return value
-
-    def validate(self, data):
-        if self.instance and 'discount_amount' in data and self.instance.amount_paid > 0:
-            raise serializers.ValidationError(
-                'Cannot modify discount after payments have been recorded. ' \
-                'Use refund or credit adjustments instead.'
-            )
-        return data
 
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items', None)

@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-05-16T21:52:11.466926",
+  "system_status": "HEALTHY",
+  "checks": {
+    "database_version": {
+      "status": "OK",
+      "value": "PostgreSQL 18.3 on x86_64-windows, compiled by msv..."
+    },
+    "table_count": {
+      "status": "OK",
+      "value": 48
+    },
+    "foreign_key_count": {
+      "status": "OK",
+      "value": 90
+    },
+    "migration_count": {
+      "status": "OK",
+      "value": 40
+    },
+    "auth_system": {
+      "status": "OK",
+      "branches_user": 1,
+      "auth_user": 1
+    },
+    "data_summary": {
+      "status": "OK",
+      "branches": 3,
+      "orders": 4,
+      "products": 9
+    }
+  }
+}

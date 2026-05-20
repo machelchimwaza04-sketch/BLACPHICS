@@ -6,7 +6,7 @@ Handles:
 - Revenue/expense categorization
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from django.db import transaction
 from django.db.models import Q, Sum
@@ -47,7 +47,7 @@ class FinanceService:
         )
         
         # Calculate values
-        start = snapshot_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        start = datetime.combine(snapshot_date, datetime.min.time())
         end = start + timedelta(days=1)
         
         order_filter = Q(status='completed', created_at__gte=start, created_at__lt=end)

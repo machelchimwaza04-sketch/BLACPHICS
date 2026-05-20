@@ -1,0 +1,6 @@
+{
+  "timestamp": "2026-05-16T21:52:11.462938",
+  "migrations": [],
+  "dependencies": [],
+  "error": "'Migration' object has no attribute 'keys'"
+}

@@ -1,0 +1,36 @@
+================================================================================
+BLACPHICS E-COMMERCE SYSTEM PERFORMANCE REPORT
+================================================================================
+
+Report Generated: 2026-04-15 00:38:00
+Total Test Reports Analyzed: 1
+
+OVERALL PERFORMANCE SUMMARY
+----------------------------------------
+Total Tests Run: 6
+Successful Tests: 6
+Failed Tests: 0
+.1f.3f.3f.3f.3f+.1f
+
+PERFORMANCE BY CATEGORY
+----------------------------------------
+<12------------------------------------------------------------
+<12<12
+
+RECOMMENDATIONS
+----------------------------------------
+INFO: LOAD TESTING: Consider running Locust load tests for production capacity planning
+SUCCESS: SYSTEM HEALTHY: All core performance metrics within acceptable ranges
+
+
+RAW TEST RESULTS
+----------------------------------------
+
+Report 1 (manual):
+  Timestamp: 2026-04-15T00:34:16.807963
+  PASS API: List Products: 0.917s
+  PASS API: List Customers: 0.286s
+  PASS API: Create Order: 0.059s
+  PASS DB: Complex Order Query: 0.014s
+  PASS DB: Stock Availability Query: 0.007s
+  PASS DB: Financial Report Query: 0.075s

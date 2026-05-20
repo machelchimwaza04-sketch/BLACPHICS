@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from common.mixins import StrictBranchSerializerMixin
 from .models import Supplier, Purchase, PurchaseItem
 
 
@@ -10,7 +11,7 @@ class PurchaseItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class PurchaseSerializer(serializers.ModelSerializer):
+class PurchaseSerializer(StrictBranchSerializerMixin, serializers.ModelSerializer):
     items = PurchaseItemSerializer(many=True, read_only=True)
     balance_due = serializers.ReadOnlyField()
 

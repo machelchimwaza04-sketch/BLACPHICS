@@ -1,9 +1,13 @@
 import { useEffect, useState, useMemo, useReducer } from 'react'
+import toast from 'react-hot-toast'
+import { Search, ShoppingBag, Package } from 'lucide-react'
 import {
-  getBranches, getProducts, getCustomers,
+  getProducts, getCustomers,
   createOrder, createOrderItem, getCustomizationServices,
   getNextOrderNumber, addPayment
 } from '../api/api'
+import { useBranch } from '../context/BranchContext'
+import { formatCurrency } from '../lib/format'
 
 const stockStyles = {
   in_stock: 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -39,8 +43,7 @@ function cartReducer(state, action) {
 }
 
 export default function POS() {
-  const [branches, setBranches] = useState([])
-  const [selectedBranch, setSelectedBranch] = useState(null)
+  const { selectedBranch } = useBranch()
   const [products, setProducts] = useState([])
   const [customers, setCustomers] = useState([])
   const [services, setServices] = useState([])
@@ -69,13 +72,6 @@ export default function POS() {
   }
 
   useEffect(() => {
-    getBranches().then(r => {
-      setBranches(r.data)
-      if (r.data.length > 0) setSelectedBranch(r.data[0])
-    }).catch(() => alert('Could not load branches'))
-  }, [])
-
-  useEffect(() => {
     getCustomizationServices().then(r => setServices(r.data)).catch(() => {})
   }, [])
 
@@ -95,9 +91,14 @@ export default function POS() {
   const addToCart = (product, variant = null) => {
     if (transactionType === 'quick_sale') {
       const st = variant ? variant.stock_status : 'in_stock'
-      if (st === 'out_of_stock') { alert('Out of stock. Switch to Custom Order.'); return }
+      if (st === 'out_of_stock') {
+        toast.error('Out of stock — switch to Custom Order to continue')
+        return
+      }
     }
     dispatch({ type: 'ADD_ITEM', payload: { product, variant } })
+    const label = variant ? `${product.name} (${variant.size}/${variant.color})` : product.name
+    toast.success(`Added ${label}`, { duration: 2000 })
   }
 
   const updateItem = (key, field, val) => dispatch({ type: 'UPDATE_ITEM', payload: { key, field, value: val } })
@@ -136,8 +137,8 @@ export default function POS() {
   }
 
   const checkout = async () => {
-    if (cartItems.length === 0) return alert('Cart is empty')
-    if (!orderNumber) return alert('Order number required')
+    if (cartItems.length === 0) return toast.error('Cart is empty')
+    if (!orderNumber) return toast.error('Order number required')
     setLoading(true)
     try {
             const oRes = await createOrder({
@@ -185,8 +186,10 @@ export default function POS() {
           : 'Walk-in',
       })
       resetAfterCheckout()
+      toast.success('Sale completed successfully')
     } catch (err) {
-      alert('Checkout failed: ' + JSON.stringify(err.response ? err.response.data : err.message))
+      const msg = err.response?.data?.detail || err.response?.data?.message || err.message
+      toast.error(typeof msg === 'string' ? msg : 'Checkout failed. Please try again.')
     }
     setLoading(false)
   }
@@ -208,7 +211,7 @@ export default function POS() {
         {parseFloat(success.balance) > 0 && !success.change && (
           <p className="text-rose-500 text-sm mt-1">Balance due: ${success.balance}</p>
         )}
-        <button onClick={() => setSuccess(null)} className="mt-6 w-full bg-indigo-600 text-white py-2.5 rounded-xl text-sm hover:bg-indigo-700">
+        <button type="button" onClick={() => setSuccess(null)} className="mt-6 w-full bg-[#008060] text-white py-2.5 rounded-xl text-sm hover:bg-[#006e52]">
           New transaction
         </button>
       </div>
@@ -216,7 +219,7 @@ export default function POS() {
   )
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-full min-h-0 overflow-hidden bg-[#f6f6f7]">
       <div className="w-[55%] flex flex-col h-full overflow-hidden border-r border-gray-200 bg-white">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
           <h1 className="text-base font-semibold text-gray-800">Point of Sale</h1>
@@ -228,11 +231,6 @@ export default function POS() {
               </button>
             ))}
           </div>
-          <select value={selectedBranch ? selectedBranch.id : ''}
-            onChange={e => setSelectedBranch(branches.find(b => b.id === parseInt(e.target.value)))}
-            className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none">
-            {branches.map(b => <option key={b.id} value={b.id}>{b.name} — {b.city}</option>)}
-          </select>
         </div>
         <div className="px-5 py-3 border-b border-gray-100">
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
@@ -260,7 +258,7 @@ export default function POS() {
                   ))}
                 </div>
               ) : (
-                <button onClick={() => addToCart(product)} className="w-full bg-indigo-600 text-white text-xs px-3 py-2 rounded-lg hover:bg-indigo-700 transition font-medium">+ Add to cart</button>
+                <button type="button" onClick={() => addToCart(product)} className="w-full bg-[#008060] text-white text-xs px-3 py-2 rounded-lg hover:bg-[#006e52] transition font-medium">+ Add to cart</button>
               )}
             </div>
           ))}
@@ -270,8 +268,16 @@ export default function POS() {
       <div className="w-[45%] flex flex-col bg-white border-l border-gray-100">
         <div className="px-5 py-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-gray-800">Cart</h2>
-            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${transactionType === 'quick_sale' ? 'bg-teal-50 text-teal-700' : 'bg-purple-50 text-purple-700'}`}>
+            <h2 className="flex items-center gap-2 font-semibold text-[#202223]">
+              <ShoppingBag size={18} />
+              Cart
+              {cartItems.length > 0 && (
+                <span className="rounded-full bg-[#008060] px-2 py-0.5 text-xs font-bold text-white">
+                  {cartItems.reduce((n, i) => n + i.quantity, 0)}
+                </span>
+              )}
+            </h2>
+            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${transactionType === 'quick_sale' ? 'bg-[#008060]/10 text-[#008060]' : 'bg-[#5c6ac4]/10 text-[#5c6ac4]'}`}>
               {transactionType === 'quick_sale' ? 'Quick sale' : 'Custom order'}
             </span>
           </div>
@@ -432,7 +438,7 @@ export default function POS() {
             )}
           </div>
           <button onClick={checkout} disabled={loading || cartItems.length === 0}
-            className={`w-full py-3 rounded-xl text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${transactionType === 'quick_sale' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}>
+            className={`w-full py-3 rounded-xl text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${transactionType === 'quick_sale' ? 'bg-[#008060] hover:bg-[#006e52] text-white' : 'bg-[#5c6ac4] hover:bg-[#4959bd] text-white'}`}>
             {loading ? 'Processing...' : transactionType === 'quick_sale' ? 'Complete sale' : 'Place custom order'}
           </button>
         </div>

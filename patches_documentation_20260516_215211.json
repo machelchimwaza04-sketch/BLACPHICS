@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-05-16T21:52:11.525939",
+  "repairs_applied": [
+    {
+      "issue": "Missing branches_user table",
+      "repair": "Created custom auth schema (branches_user, branches_user_groups, branches_user_user_permissions)",
+      "applied_by": "tmp_branch_repair.py",
+      "date": "Session repair",
+      "requires_normalization": false,
+      "notes": "Foreign keys repointed from auth_user to branches_user for django_admin_log and orders_order"
+    },
+    {
+      "issue": "Foreign keys pointing to auth_user",
+      "repair": "Repointed FK constraints to branches_user",
+      "applied_by": "tmp_branch_repair.py",
+      "date": "Session repair",
+      "requires_normalization": false,
+      "notes": "Affected tables: django_admin_log, orders_order"
+    },
+    {
+      "issue": "branches.0003 migration pending",
+      "repair": "Applied branches.0003_alter_user_options_alter_user_branch_and_more",
+      "applied_by": "manage.py migrate branches",
+      "date": "Session repair",
+      "requires_normalization": false,
+      "notes": "Migration applied successfully after schema repair"
+    }
+  ],
+  "ongoing_monitoring": [
+    "Verify branches.User remains active custom auth model",
+    "Monitor for any stale auth_user references",
+    "Verify branch-scoped access controls work correctly",
+    "Check for users without branch assignment"
+  ]
+}

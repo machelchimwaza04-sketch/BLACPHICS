@@ -5,6 +5,55 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+const AUTH_PATHS = ['/auth/login/', '/auth/refresh/', '/auth/user/']
+let handlingUnauthorized = false
+
+/** Call after login page loads or successful login so future 401s can redirect again. */
+export function resetUnauthorizedRedirect() {
+  handlingUnauthorized = false
+}
+
+function isAuthRequest(config) {
+  const url = config?.url || ''
+  return AUTH_PATHS.some((path) => url.includes(path))
+}
+
+function clearAuthStorage() {
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
+}
+
+// Attach access token if present
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('accessToken')
+  if (token) {
+    config.headers = config.headers || {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// On 401: clear tokens and redirect once (avoid infinite reload loops)
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    const status = err.response?.status
+    if (status !== 401 || isAuthRequest(err.config)) {
+      return Promise.reject(err)
+    }
+
+    clearAuthStorage()
+
+    const onLoginPage = window.location.pathname === '/login'
+    if (!handlingUnauthorized && !onLoginPage) {
+      handlingUnauthorized = true
+      window.location.replace('/login')
+    }
+
+    return Promise.reject(err)
+  }
+)
+
 // Helper — always returns a plain array regardless of response shape
 const list = (res) => Array.isArray(res.data) ? res.data : (res.data.results ?? [])
 const wrap = (promise) => promise.then(res => ({ ...res, data: list(res) }))
@@ -43,7 +92,7 @@ export const deleteCustomer = (id) => api.delete(`/customers/${id}/`)
 export const getOrders = (branchId, params = {}) => wrap(api.get('/orders/', { params: { branch: branchId, ...params } }))
 export const getOrder = (id) => api.get(`/orders/${id}/`)
 export const createOrder = (data) => api.post('/orders/', data)
-export const updateOrder = (id, data) => api.put(`/orders/${id}/`, data)
+export const updateOrder = (id, data) => api.patch(`/orders/${id}/`, data)
 export const deleteOrder = (id) => api.delete(`/orders/${id}/`)
 export const createOrderItem = (data) => api.post('/order-items/', data)
 export const getNextOrderNumber = (branchId) => api.get('/orders/next_number/?branch=' + branchId)

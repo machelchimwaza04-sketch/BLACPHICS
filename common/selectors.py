@@ -101,6 +101,80 @@ class SupplierSelector(BaseSelector):
     def get_active_suppliers():
         """Get only active suppliers."""
         return SupplierSelector.get_queryset().filter(is_active=True)
+    
+    @staticmethod
+    def get_with_summary():
+        """Get suppliers with purchase summary data."""
+        from suppliers.models import Supplier, Purchase
+        from django.db.models import Sum, F, Case, When, Value, IntegerField, Count, DecimalField
+        
+        return (
+            Supplier.objects.filter(is_active=True)
+            .annotate(
+                total_purchases=Count('purchases'),
+                total_owed=Sum(
+                    Case(
+                        When(purchases__status='received', then=F('purchases__total_amount') - F('purchases__amount_paid')),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=14, decimal_places=2)
+                    )
+                ),
+                has_overdue=Case(
+                    When(
+                        purchases__payment_status__in=['unpaid', 'partial'],
+                        purchases__status='received',
+                        then=Value(1)
+                    ),
+                    default=Value(0),
+                    output_field=IntegerField()
+                )
+            )
+        )
+
+
+class ProductSelector(BaseSelector):
+    """Optimized product queries."""
+    
+    @staticmethod
+    def get_queryset():
+        """Get products with variants and branch pre-fetched."""
+        from products.models import Product, ProductVariant
+        
+        return (
+            Product.objects
+            .select_related('branch')
+            .prefetch_related(
+                Prefetch('variants', queryset=ProductVariant.objects.all())
+            )
+        )
+    
+    @staticmethod
+    def get_for_branch(branch_id):
+        """Get products for a specific branch."""
+        return ProductSelector.get_queryset().filter(branch_id=branch_id)
+    
+    @staticmethod
+    def get_with_stock_info(branch_id=None, created_after=None, created_before=None):
+        """Get products with stock information and optional date filtering."""
+        from products.models import ProductVariant
+        
+        qs = ProductSelector.get_queryset()
+        if branch_id:
+            qs = qs.filter(branch_id=branch_id)
+        
+        if created_after:
+            qs = qs.filter(created_at__gte=created_after)
+        
+        if created_before:
+            qs = qs.filter(created_at__lt=created_before)
+        
+        # Annotate with stock information
+        return qs.prefetch_related(
+            Prefetch('variants', 
+                    queryset=ProductVariant.objects.annotate(
+                        available_stock=F('stock_quantity') - F('committed_quantity')
+                    ))
+        )
 
 
 class FinanceSelector(BaseSelector):

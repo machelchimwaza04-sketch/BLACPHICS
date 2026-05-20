@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from branches.models import Branch
 from products.models import Product
@@ -78,3 +79,51 @@ class PurchaseItem(models.Model):
     @property
     def subtotal(self):
         return self.unit_price * self.quantity
+
+
+class PurchasePayment(models.Model):
+    PAYMENT_METHOD_CHOICES = [
+        ('cash', 'Cash'),
+        ('card', 'Card'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('mobile_money', 'Mobile Money'),
+    ]
+
+    PAYMENT_TYPE_CHOICES = [
+        ('payment', 'Payment'),
+        ('refund', 'Refund'),
+        ('reversal', 'Reversal'),
+    ]
+
+    purchase = models.ForeignKey(
+        Purchase, on_delete=models.CASCADE, related_name='payments'
+    )
+    branch = models.ForeignKey(
+        Branch, on_delete=models.CASCADE, related_name='purchase_payments'
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    method = models.CharField(
+        max_length=20, choices=PAYMENT_METHOD_CHOICES, default='cash'
+    )
+    payment_type = models.CharField(
+        max_length=20, choices=PAYMENT_TYPE_CHOICES, default='payment'
+    )
+    reference = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    idempotency_key = models.CharField(max_length=255, null=True, blank=True, db_index=True)
+    processed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='processed_purchase_payments'
+    )
+    journal_entry = models.ForeignKey(
+        'finance.JournalEntry', on_delete=models.PROTECT, null=True, blank=True, related_name='purchase_payments'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['purchase', 'reference']),
+        ]
+
+    def __str__(self):
+        return f"Supplier payment ${self.amount} for {self.purchase.purchase_number}"

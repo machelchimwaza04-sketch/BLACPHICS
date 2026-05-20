@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from common.mixins import StrictBranchSerializerMixin
 from .models import Customer
 
 
@@ -19,7 +20,7 @@ class CustomerOrderSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField()
 
 
-class CustomerSerializer(serializers.ModelSerializer):
+class CustomerSerializer(StrictBranchSerializerMixin, serializers.ModelSerializer):
     """
     Full customer serializer with analytics:
     - full_name: first + last

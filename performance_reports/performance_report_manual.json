@@ -1,0 +1,50 @@
+{
+  "test_run": {
+    "timestamp": "2026-04-15T00:34:16.807963",
+    "source": "manual"
+  },
+  "results": {
+    "API: List Products": {
+      "duration": 0.9171626567840576,
+      "memory_delta": 11.91015625,
+      "success": true,
+      "result": "<Response status_code=200, \"application/json\">",
+      "timestamp": "2026-04-15T00:34:16.360737"
+    },
+    "API: List Customers": {
+      "duration": 0.2855246067047119,
+      "memory_delta": 0.33984375,
+      "success": true,
+      "result": "<Response status_code=200, \"application/json\">",
+      "timestamp": "2026-04-15T00:34:16.646595"
+    },
+    "API: Create Order": {
+      "duration": 0.058973073959350586,
+      "memory_delta": 0.38671875,
+      "success": true,
+      "result": "<Response status_code=201, \"application/json\">",
+      "timestamp": "2026-04-15T00:34:16.709237"
+    },
+    "DB: Complex Order Query": {
+      "duration": 0.013590812683105469,
+      "memory_delta": 0.046875,
+      "success": true,
+      "result": "[<Order: Order ORD-00062 (quick_sale)>, <Order: Order ORD-00061 (quick_sale)>, <Order: Order ORD-00060 (quick_sale)>, <Order: Order ORD-00059 (quick_sale)>, <Order: Order ORD-00058 (quick_sale)>, <Order: Order ORD-00057 (quick_sale)>, <Order: Order ORD-00056 (quick_sale)>, <Order: Order ORD-00055 (quick_sale)>, <Order: Order ORD-00054 (quick_sale)>, <Order: Order ORD-00052 (quick_sale)>]",
+      "timestamp": "2026-04-15T00:34:16.723265"
+    },
+    "DB: Stock Availability Query": {
+      "duration": 0.007233142852783203,
+      "memory_delta": 0.1484375,
+      "success": true,
+      "result": "[<ProductVariant: Product 1-13 - L - Black>, <ProductVariant: Product 1-31 - L - Black>, <ProductVariant: Product 1-46 - L - Black>, <ProductVariant: Product 1-29 - L - Black>, <ProductVariant: Product 1-49 - L - Black>, <ProductVariant: Product 1-14 - L - Blue>, <ProductVariant: Product 1-49 - L - Blue>, <ProductVariant: Product 1-30 - L - Blue>, <ProductVariant: Product 1-27 - L - Blue>, <ProductVariant: Product 1-46 - L - Blue>, <ProductVariant: Product 1-12 - L - Green>, <ProductVariant: Product 1-1 - L - Green>, <ProductVariant: Product 1-37 - L - Green>, <ProductVariant: Product 1-14 - L - Green>, <ProductVariant: Product 1-16 - L - Green>, <ProductVariant: Product 1-30 - L - Green>, <ProductVariant: Product 1-6 - L - Red>, <ProductVariant: Product 1-2 - L - Red>, <ProductVariant: Product 1-45 - L - Red>, <ProductVariant: Product 1-20 - L - Red>, <ProductVariant: Product 1-26 - L - Red>, <ProductVariant: Product 1-17 - L - Red>, <ProductVariant: Product 1-18 - L - Red>, <ProductVariant: Product 1-22 - L - Red>, <ProductVariant: Product 1-18 - M - Black>, <ProductVariant: Product 1-45 - M - Black>, <ProductVariant: Product 1-8 - M - Black>, <ProductVariant: Product 1-30 - M - Black>, <ProductVariant: Product 1-17 - M - Black>, <ProductVariant: Product 1-42 - M - Black>, <ProductVariant: Product 1-15 - M - Blue>, <ProductVariant: Product 1-5 - M - Blue>, <ProductVariant: Product 1-9 - M - Blue>, <ProductVariant: Product 1-14 - M - Blue>, <ProductVariant: Product 1-21 - M - Blue>, <ProductVariant: Product 1-35 - M - Blue>, <ProductVariant: Product 1-47 - M - Blue>, <ProductVariant: Product 1-17 - M - Blue>, <ProductVariant: Product 1-2 - M - Green>, <ProductVariant: Product 1-38 - M - Green>, <ProductVariant: Product 1-31 - M - Red>, <ProductVariant: Product 1-5 - M - Red>, <ProductVariant: Product 1-37 - M - Red>, <ProductVariant: Product 1-4 - S - Black>, <ProductVariant: Product 1-27 - S - Black>, <ProductVariant: Product 1-43 - S - Black>, <ProductVariant: Product 1-42 - S - Black>, <ProductVariant: Product 1-1 - S - Black>, <ProductVariant: Product 1-47 - S - Black>, <ProductVariant: Product 1-34 - S - Blue>, <ProductVariant: Product 1-36 - S - Blue>, <ProductVariant: Product 1-26 - S - Blue>, <ProductVariant: Product 1-32 - S - Green>, <ProductVariant: Product 1-23 - S - Green>, <ProductVariant: Product 1-33 - S - Green>, <ProductVariant: Product 1-27 - S - Green>, <ProductVariant: Product 1-19 - S - Red>, <ProductVariant: Product 1-21 - S - Red>, <ProductVariant: Product 1-44 - S - Red>, <ProductVariant: Product 1-9 - S - Red>, <ProductVariant: Product 1-29 - S - Red>, <ProductVariant: Product 1-18 - S - Red>, <ProductVariant: Product 1-28 - XL - Black>, <ProductVariant: Product 1-35 - XL - Black>, <ProductVariant: Product 1-46 - XL - Black>, <ProductVariant: Product 1-48 - XL - Black>, <ProductVariant: Product 1-50 - XL - Blue>, <ProductVariant: Product 1-23 - XL - Blue>, <ProductVariant: Product 1-47 - XL - Blue>, <ProductVariant: Product 1-29 - XL - Blue>, <ProductVariant: Product 1-39 - XL - Green>, <ProductVariant: Product 1-43 - XL - Green>, <ProductVariant: Product 1-5 - XL - Green>, <ProductVariant: Product 1-4 - XL - Green>, <ProductVariant: Product 1-26 - XL - Green>, <ProductVariant: Product 1-49 - XL - Green>, <ProductVariant: Product 1-24 - XL - Green>, <ProductVariant: Product 1-38 - XL - Red>, <ProductVariant: Product 1-40 - XL - Red>, <ProductVariant: Product 1-10 - XL - Red>, <ProductVariant: Product 1-44 - XL - Red>, <ProductVariant: Product 1-4 - XL - Red>, <ProductVariant: Product 1-25 - XL - Red>, <ProductVariant: Product 1-19 - XL - Red>]",
+      "timestamp": "2026-04-15T00:34:16.731061"
+    },
+    "DB: Financial Report Query": {
+      "duration": 0.07455182075500488,
+      "memory_delta": 0.34765625,
+      "success": true,
+      "result": "888.61",
+      "timestamp": "2026-04-15T00:34:16.806015"
+    }
+  }
+}

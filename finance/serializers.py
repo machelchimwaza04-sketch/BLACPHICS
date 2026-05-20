@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from common.mixins import StrictBranchSerializerMixin
 from .models import ExpenseCategory, Expense, Revenue, ProfitLossReport
 
 
@@ -8,13 +9,13 @@ class ExpenseCategorySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class ExpenseSerializer(serializers.ModelSerializer):
+class ExpenseSerializer(StrictBranchSerializerMixin, serializers.ModelSerializer):
     class Meta:
         model = Expense
         fields = '__all__'
 
 
-class RevenueSerializer(serializers.ModelSerializer):
+class RevenueSerializer(StrictBranchSerializerMixin, serializers.ModelSerializer):
     class Meta:
         model = Revenue
         fields = '__all__'

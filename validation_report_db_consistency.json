@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-05-16T21:41:22.947096",
+  "issues": [],
+  "warnings": [
+    "Could not fully verify migration state: 'Migration' object has no attribute 'keys'"
+  ],
+  "info_count": 33,
+  "status": "PASS"
+}

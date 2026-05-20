@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-05-16T21:45:55.226330",
+  "issues": [
+    "Error comparing applied vs disk migrations: 'Migration' object has no attribute 'keys'"
+  ],
+  "warnings": [
+    "Could not check for destructive migrations: 'Migration' object has no attribute 'items'",
+    "Could not validate migration dependencies: 'MigrationGraph' object has no attribute 'circular_nodes'",
+    "Could not check for fake migrations: column \"replace\" does not exist\nLINE 2: ...     SELECT COUNT(*) FROM django_migrations WHERE replace = ...\n                                                             ^",
+    "Apps without migrations: {'finance', 'customers', 'branches', 'rest_framework_simplejwt', 'products', 'inventory', 'suppliers', 'common', 'corsheaders', 'rest_framework', 'orders'}",
+    "Could not verify migration app coverage: sequence item 0: expected str instance, tuple found"
+  ],
+  "status": "FAIL"
+}

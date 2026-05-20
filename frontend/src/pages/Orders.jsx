@@ -74,7 +74,7 @@ export default function Orders() {
   }, [])
 
   useEffect(() => {
-    if (!selectedBranch) return
+    if (!selectedBranch || !selectedBranch.id) return
     setLoading(true)
 
     const params = {}
@@ -86,7 +86,13 @@ export default function Orders() {
     }
 
     getOrders(selectedBranch.id, params)
-      .then(r => setOrders(r.data))
+      .then(r => {
+        setOrders(Array.isArray(r.data) ? r.data : [])
+      })
+      .catch(err => {
+        console.error('Failed to load orders:', err.response?.data || err.message)
+        setOrders([])
+      })
       .finally(() => setLoading(false))
   }, [selectedBranch, tab])
 
@@ -120,11 +126,15 @@ export default function Orders() {
   const handleUpdate = async () => {
     try {
       const res = await updateOrder(editingOrder.id, {
-        ...editingOrder,
-        ...editForm,
+        status: editForm.status,
+        payment_status: editForm.payment_status,
+        payment_method: editForm.payment_method,
         amount_paid: toNum(editForm.amount_paid),
+        notes: editForm.notes,
+        estimated_completion: editForm.estimated_completion || null,
       })
       setOrders(prev => prev.map(o => o.id === res.data.id ? res.data : o))
+      setOrderDetails(prev => prev[res.data.id] ? { ...prev, [res.data.id]: res.data } : prev)
       setEditingOrder(null)
     } catch (err) {
       alert('Update failed: ' + JSON.stringify(err.response?.data))
@@ -149,10 +159,16 @@ export default function Orders() {
 
     setLoadingOrderDetails(prev => ({ ...prev, [order.id]: true }))
     try {
+      console.log(`Fetching order details for order ${order.id}...`)
       const res = await getOrder(order.id)
-      setOrderDetails(prev => ({ ...prev, [order.id]: res.data }))
+      console.log(`Order detail response:`, res)
+      const orderData = res.data || res
+      setOrderDetails(prev => ({ ...prev, [order.id]: orderData }))
     } catch (err) {
-      alert('Failed to load order details: ' + (err.response?.data?.error || err.message))
+      console.error(`Failed to load order ${order.id}:`, err)
+      console.error('Error response:', err.response?.data, err.response?.status)
+      // Fallback: use cached list data
+      setOrderDetails(prev => ({ ...prev, [order.id]: order }))
     } finally {
       setLoadingOrderDetails(prev => ({ ...prev, [order.id]: false }))
     }
@@ -213,8 +229,9 @@ export default function Orders() {
     const next = STATUS_FLOW[idx + direction]
     if (!next || next === 'cancelled') return
     try {
-      const res = await updateOrder(order.id, { ...order, status: next })
+      const res = await updateOrder(order.id, { status: next })
       setOrders(prev => prev.map(o => o.id === res.data.id ? res.data : o))
+      setOrderDetails(prev => prev[res.data.id] ? { ...prev, [res.data.id]: res.data } : prev)
     } catch {
       alert('Could not update status')
     }
@@ -223,8 +240,9 @@ export default function Orders() {
   const handleCancel = async (order) => {
     if (!confirm(`Cancel order ${order.order_number}?`)) return
     try {
-      const res = await updateOrder(order.id, { ...order, status: 'cancelled' })
+      const res = await updateOrder(order.id, { status: 'cancelled' })
       setOrders(prev => prev.map(o => o.id === res.data.id ? res.data : o))
+      setOrderDetails(prev => prev[res.data.id] ? { ...prev, [res.data.id]: res.data } : prev)
     } catch {
       alert('Could not cancel order')
     }

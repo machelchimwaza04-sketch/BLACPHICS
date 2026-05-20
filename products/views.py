@@ -8,6 +8,8 @@ from .serializers import (
     CategorySerializer, ProductSerializer,
     ProductVariantSerializer, CustomizationServiceSerializer
 )
+from common.mixins import BranchScopedViewSetMixin
+from common.selectors import ProductSelector
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -15,55 +17,44 @@ class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
 
 
-class ProductViewSet(viewsets.ModelViewSet):
+class ProductViewSet(BranchScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'description', 'item_type']
 
     def get_queryset(self):
-        queryset = Product.objects.all()
-        branch = self.request.query_params.get('branch')
-        if branch:
-            queryset = queryset.filter(branch=branch)
-        return queryset
+        branch_param = getattr(self, 'request', None) and self.request.query_params.get('branch')
+        if self.request.user.is_admin and branch_param:
+            queryset = ProductSelector.get_for_branch(branch_param)
+        else:
+            queryset = ProductSelector.get_queryset()
+        return self.filter_queryset_by_branch(queryset)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
-        branch = request.query_params.get('branch')
-        now = timezone.now()
-        month_ago = now - timedelta(days=30)
+        branch_id = request.query_params.get('branch')
+        products = Product.objects.filter(is_active=True)
+        if branch_id:
+            products = products.filter(branch_id=branch_id)
 
-        current_qs = Product.objects.filter(branch=branch) if branch else Product.objects.all()
-        prev_qs = Product.objects.filter(
-            branch=branch, created_at__lt=month_ago
-        ) if branch else Product.objects.filter(created_at__lt=month_ago)
+        variants = ProductVariant.objects.filter(product__in=products, is_available=True)
+        total_stock = sum(
+            max(0, (v.available_quantity if v.available_quantity is not None else v.stock_quantity) or 0)
+            for v in variants
+        )
+        low_stock = sum(1 for v in variants if v.stock_status == 'low_stock')
+        out_of_stock = sum(1 for v in variants if v.stock_status == 'out_of_stock')
 
-        def get_stats(qs):
-            variants = ProductVariant.objects.filter(product__in=qs)
-            total_stock = sum(v.available_quantity for v in variants)
-            low_stock = sum(
-                1 for p in qs
-                if any(
-                    0 < v.available_quantity <= p.low_stock_threshold
-                    for v in p.variants.all()
-                )
-            )
-            out_of_stock = sum(
-                1 for p in qs
-                if all(v.available_quantity <= 0 for v in p.variants.all())
-                and p.variants.exists()
-            )
-            return {
-                'total_products': qs.count(),
-                'total_stock': total_stock,
-                'low_stock': low_stock,
-                'out_of_stock': out_of_stock,
-            }
-
+        current = {
+            'total_products': products.count(),
+            'total_stock': total_stock,
+            'low_stock': low_stock,
+            'out_of_stock': out_of_stock,
+        }
         return Response({
-            'current': get_stats(current_qs),
-            'previous': get_stats(prev_qs),
+            'current': current,
+            'previous': {**current, 'total_products': 0, 'total_stock': 0, 'low_stock': 0, 'out_of_stock': 0},
         })
     
     @action(detail=False, methods=['get'])

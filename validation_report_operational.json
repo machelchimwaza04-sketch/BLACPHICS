@@ -1,0 +1,100 @@
+{
+  "timestamp": "2026-05-16T21:50:15.554174",
+  "total_tests": 18,
+  "passed": 12,
+  "failed": 6,
+  "pass_rate": 66.66666666666666,
+  "test_results": [
+    {
+      "test": "Branch Creation",
+      "passed": false,
+      "message": "Branch() got unexpected keyword arguments: 'location'"
+    },
+    {
+      "test": "Branch Retrieval",
+      "passed": true,
+      "message": "Retrieved 3 branches"
+    },
+    {
+      "test": "User Creation with Branch",
+      "passed": false,
+      "message": "UserManager.create_user() missing 1 required positional argument: 'username'"
+    },
+    {
+      "test": "User Authentication",
+      "passed": true,
+      "message": "Found user machelchimwaza04@gmail.com"
+    },
+    {
+      "test": "User Permissions",
+      "passed": true,
+      "message": "User machelchimwaza04@gmail.com has permission system"
+    },
+    {
+      "test": "Product Creation",
+      "passed": false,
+      "message": "null value in column \"branch_id\" of relation \"products_product\" violates not-null constraint\nDETAIL:  Failing row contains (5772, Test Product 1778964615.426391, , plain, 99.99, 0.00, 100, 5, , t, 2026-05-16 20:50:15.428464+00, 2026-05-16 20:50:15.428491+00, null, null)."
+    },
+    {
+      "test": "Product Retrieval",
+      "passed": true,
+      "message": "Retrieved 9 active products"
+    },
+    {
+      "test": "Order Creation",
+      "passed": false,
+      "message": "Order() got unexpected keyword arguments: 'order_date'"
+    },
+    {
+      "test": "Order Item Access",
+      "passed": true,
+      "message": "Found 7 order items"
+    },
+    {
+      "test": "Inventory Transaction",
+      "passed": false,
+      "message": "InventoryTransaction has no branch."
+    },
+    {
+      "test": "Inventory Ledger Access",
+      "passed": true,
+      "message": "Found 0 transactions"
+    },
+    {
+      "test": "Account Access",
+      "passed": true,
+      "message": "Chart of accounts exists (0 custom accounts)"
+    },
+    {
+      "test": "Journal Entry Creation",
+      "passed": false,
+      "message": "Not enough accounts for test"
+    },
+    {
+      "test": "Supplier Access",
+      "passed": true,
+      "message": "Found 2 suppliers"
+    },
+    {
+      "test": "Purchase Access",
+      "passed": true,
+      "message": "Found 0 purchases"
+    },
+    {
+      "test": "Branch-Scoped Filtering",
+      "passed": true,
+      "message": "Found 3 orders in Blacphics Main Studio"
+    },
+    {
+      "test": "User-Branch Relationship",
+      "passed": true,
+      "message": "0/1 users have branch assignment"
+    },
+    {
+      "test": "Cascade Relationships",
+      "passed": true,
+      "message": "Order relationships validated: branch=Blacphics Main Studio - Lusaka, user=None"
+    }
+  ],
+  "status": "FAIL"
+}

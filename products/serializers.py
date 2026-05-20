@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from common.mixins import StrictBranchSerializerMixin
 from .models import Category, Product, ProductVariant, CustomizationService
 
 
@@ -19,7 +20,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class ProductSerializer(serializers.ModelSerializer):
+class ProductSerializer(StrictBranchSerializerMixin, serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, read_only=True)
     is_low_stock = serializers.ReadOnlyField()
     total_stock = serializers.SerializerMethodField()

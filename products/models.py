@@ -117,25 +117,29 @@ class ProductVariant(models.Model):
             return 'low_stock'
         return 'in_stock'
 
-    def add_stock(self, quantity):
-        self.stock_quantity += quantity
-        self.save()
-
-    def reduce_stock(self, quantity):
-        if quantity > self.stock_quantity:
-            raise ValueError("Not enough stock.")
-        self.stock_quantity -= quantity
-        self.save()
-
-    def commit_stock(self, quantity):
-        self.committed_quantity += quantity
-        self.save()
-
-    def release_committed_stock(self, quantity):
-        if quantity > self.committed_quantity:
-            raise ValueError("Cannot release more than committed.")
-        self.committed_quantity -= quantity
-        self.save()
+    # =========================
+    # DEPRECATED: Direct stock mutation methods removed
+    # All stock operations now handled by InventoryService
+    # =========================
+    # def add_stock(self, quantity):
+    #     self.stock_quantity += quantity
+    #     self.save()
+    #
+    # def reduce_stock(self, quantity):
+    #     if quantity > self.stock_quantity:
+    #         raise ValueError("Not enough stock.")
+    #     self.stock_quantity -= quantity
+    #     self.save()
+    #
+    # def commit_stock(self, quantity):
+    #     self.committed_quantity += quantity
+    #     self.save()
+    #
+    # def release_committed_stock(self, quantity):
+    #     if quantity > self.committed_quantity:
+    #         raise ValueError("Cannot release more than committed.")
+    #     self.committed_quantity -= quantity
+    #     self.save()
 
     class Meta:
         unique_together = ('product', 'size', 'color')

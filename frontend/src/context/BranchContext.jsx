@@ -9,6 +9,12 @@ export function BranchProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const token = localStorage.getItem('accessToken')
+    if (!token) {
+      setLoading(false)
+      return
+    }
+
     const load = async () => {
       try {
         const res = await getBranches()

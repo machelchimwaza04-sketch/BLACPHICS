@@ -43,13 +43,11 @@ export default function Alerts() {
   const filtered = filter === 'all' ? alerts : alerts.filter(a => a.status === filter)
 
   return (
-    <div className="p-8">
-
-      {/* header */}
+    <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Stock Alerts</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <h1 className="text-2xl font-semibold text-[#202223]">Stock alerts</h1>
+          <p className="text-sm text-[#6d7175] mt-0.5">
             Monitor low and out-of-stock variants across your inventory
           </p>
         </div>

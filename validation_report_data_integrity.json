@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-16T21:48:55.132072",
+  "issues": [
+    "ORM relationship check failed: 'NoneType' object has no attribute 'id'"
+  ],
+  "warnings": [
+    "Orders without created_by: 4",
+    "Error validating inventory: Cannot resolve keyword 'quantity_on_hand' into field. Choices are: base_price, branch, branch_id, category, category_id, cost_layers, created_at, customization_price, description, id, image, inventory_transactions, inventoryledger, inventorysnapshotitem, is_active, item_type, low_stock_threshold, name, order_items, purchase_items, stock_adjustments, stock_quantity, updated_at, variants",
+    "Users without branch assignment: 1"
+  ],
+  "status": "FAIL"
+}

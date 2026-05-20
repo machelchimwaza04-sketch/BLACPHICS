@@ -1,12 +1,13 @@
-﻿a s g i r e f = = 3 . 1 1 . 1 
- D j a n g o = = 6 . 0 . 3 
- d j a n g o r e s t f r a m e w o r k = = 3 . 1 7 . 1 
- d j a n g o - c o r s - h e a d e r s = = 4 . 9 . 0 
- s q l p a r s e = = 0 . 5 . 5 
- t z d a t a = = 2 0 2 5 . 3 
- o p e n p y x l = = 3 . 1 . 5 
- P i l l o w = = 1 2 . 0 . 0 
- r e p o r t l a b = = 4 . 4 . 6 
- python-dotenv==1.0.1
+asgiref==3.11.1
+django==6.0.3
+djangorestframework==3.17.1
+django-cors-headers==4.9.0
+sqlparse==0.5.5
+tzdata==2025.3
+openpyxl==3.1.5
+Pillow==12.0.0
+reportlab==4.4.6
+python-dotenv==1.0.1
+psycopg2-binary==2.9.10
 celery==5.4.0
 redis==5.1.0
